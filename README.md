@@ -30,10 +30,10 @@ python3 -m money_sim.sim --games 1000 --seed 1
 
 ## 实验边界
 
-这是 Cursor Harness 实验仓库：人定边界，Agent 先连续做完 V1 到 V3。V3 不是停止点，之后按 [`HARNESS.md`](./HARNESS.md)「做到 V20」筛选，V20 是上限。权限和验收见 [`HARNESS.md`](./HARNESS.md)、[`ACCEPTANCE.md`](./ACCEPTANCE.md)。进度在 [`PROGRESS.md`](./PROGRESS.md)。不接真实账户。
+这是 Cursor Harness 实验仓库：人定边界，Agent 先连续做完 V1 到 V3。V3 不是停止点，之后按 [`HARNESS.md`](./HARNESS.md)「做到 V20」筛选，V20 是上限。本阶段收到 V16。现在能玩的是第 1 月、可兑现 72 万那一局，五条留下的路线，对局对照，以及中途存档打分。权限和验收见 [`HARNESS.md`](./HARNESS.md)、[`ACCEPTANCE.md`](./ACCEPTANCE.md)。进度在 [`PROGRESS.md`](./PROGRESS.md)。不接真实账户。
 
 ## 给实现 Agent
 
-先读 [`HARNESS.md`](./HARNESS.md) 和 [`ACCEPTANCE.md`](./ACCEPTANCE.md)。`HARNESS.md` 里「做到 V20」是必读：V20 是上限。一版收工并审核通过之后立刻按四问筛下一版；筛过了就开工，筛不过就把原因写进候选池然后停。不要为了凑版数发明需求。可以 commit，并向本仓功能分支 push、更新 PR。禁止 force-push，禁止 push `main`，禁止自行合并，禁止接真实账户。
+先读 [`HARNESS.md`](./HARNESS.md) 和 [`ACCEPTANCE.md`](./ACCEPTANCE.md)。`HARNESS.md` 里「做到 V20」是必读：V20 是上限。本阶段已在 V16 结项。在人再指定下一版之前，不按「版本号小于 20」开工。人指定下一版之后，仍用四问筛选；筛过了就开工，筛不过就把原因写进候选池然后停。不要为了凑版数发明需求。可以 commit，并向本仓功能分支 push、更新 PR。禁止 force-push，禁止 push `main`，禁止自行合并，禁止接真实账户。
 
 参考知识在 `references/`。标本只许学结构，禁止整仓复制。
