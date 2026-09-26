@@ -13,6 +13,15 @@ PRICE_GROWTH_DEN = 10_000
 START_ENERGY = 76
 START_STRESS = 22
 START_AUTONOMY = 42
+START_CONDITION = 78
+CONDITION_LOW = 40
+CONDITION_HOLD = 58
+CONDITION_EASE = 74
+CONDITION_WORK = {"full": -5, "part": -2, "free": 2}
+CONDITION_REST = 3
+CONDITION_CONSUME_LOW = 8
+CONDITION_CONSUME_MID = 2
+CONDITION_EFFORT = 1
 START_CAREER = 24
 START_VENTURE = 6
 START_INVEST = 10
@@ -142,6 +151,7 @@ LOG_FIELDS = (
     "debt",
     "net_worth",
     "energy",
+    "condition",
     "salary",
     "living",
     "business_net",

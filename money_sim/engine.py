@@ -8,6 +8,7 @@ from money_sim.constants import (
     BUILD_COST,
     BUILDS_TO_LAUNCH,
     BURNOUT_LIMIT,
+    CONDITION_LOW,
     CONSUME_AUTONOMY,
     CONTRACT_TERMS,
     DEBT_CAP,
@@ -70,6 +71,7 @@ from money_sim.economy import (
     business_opex,
     clamp,
     clamp_return,
+    condition_after,
     consume_lifestyle_gain,
     consume_network_gain,
     consume_outlook,
@@ -103,7 +105,7 @@ def _as_int(value: object) -> int | None:
 def commitment(state: GameState, plan: Plan) -> dict:
     """合同把就业锁死。精力不够时这个月停薪请假，而不是把局卡死。"""
     bound = state.contract_left > 0 and not plan.break_contract
-    leave = bound and state.energy < LOW_ENERGY_FULL
+    leave = bound and (state.energy < LOW_ENERGY_FULL or state.condition < CONDITION_LOW)
     if leave:
         employment = "free"
     elif bound:
@@ -200,6 +202,7 @@ def quote(state: GameState, plan: Plan) -> dict:
         if slot == "rest" and bound["contracted_pay"]:
             gain = rest_gain
         energy_after += gain
+    next_condition = condition_after(state.condition, employment, plan.slots)
     return {
         "salary": pay,
         "bonus": bonus,
@@ -227,6 +230,7 @@ def quote(state: GameState, plan: Plan) -> dict:
         "sell_proceeds": sell_proceeds,
         "cash_after_choices": cash_after,
         "energy_after": energy_after,
+        "condition_next": next_condition,
         "learn_slots": learn_slots,
         "consume_slots": consume_slots,
         "consume_autonomy": CONSUME_AUTONOMY if consume_slots else 0,
@@ -255,15 +259,22 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         errors.append("合同没到期，不能再签")
     if plan.sign_months and state.energy < LOW_ENERGY_FULL:
         errors.append("精力不够，这个月签了也上不了班")
+    elif plan.sign_months and state.condition < CONDITION_LOW:
+        errors.append("状态太差，这个月签了也上不了全职")
     if plan.break_contract and state.contract_left <= 0:
         errors.append("没有合同可违约")
     if bound["leave"]:
         if plan.employment != "free":
-            errors.append("这个月是病假，要自己安排时间")
+            if state.energy < LOW_ENERGY_FULL:
+                errors.append("这个月是病假，要自己安排时间")
+            else:
+                errors.append("状态太差，这个月停薪请假，要自己安排时间")
     elif bound["bound"] and plan.employment != "full":
         errors.append("合同没到期")
     elif plan.employment == "full" and state.energy < LOW_ENERGY_FULL:
         errors.append("精力不足，无法全职")
+    elif plan.employment == "full" and state.condition < CONDITION_LOW:
+        errors.append("状态太差，无法全职")
     need = TOTAL_SLOTS - WORK_SLOTS[plan.employment]
     if len(plan.slots) != need:
         errors.append(f"本月应安排 {need} 个自由时间槽")
@@ -374,6 +385,8 @@ def preview(state: GameState, plan: Plan) -> dict:
             warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
     if quoted["job_gap"]:
         warnings.append("接手外部报价的这个月没有工资，月供和生活费照付。这份报价本身不加技能，学习仍然算。")
+    if quoted["employment"] == "full" and quoted["condition_next"] < CONDITION_LOW:
+        warnings.append("下月状态低于 40，不能再全职。合同还在就会停薪请假。")
     if quoted["consume_slots"]:
         warnings.append(
             f"消费让时间自主 +{quoted['consume_autonomy']}，多花的钱不会再加。"
@@ -452,7 +465,10 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         notes.append(f"签了 {plan.sign_months} 个月全职")
     if quoted["leave"]:
         s.stress += LEAVE_STRESS
-        notes.append("合同月请了病假，没有工资")
+        if state.energy < LOW_ENERGY_FULL:
+            notes.append("合同月请了病假，没有工资")
+        else:
+            notes.append("状态太低，合同月停薪请假，没有工资")
 
     _move(s, "cash", quoted["salary"], "salary", ledger)
     if quoted["tuition"]:
@@ -490,6 +506,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         notes.append("卖掉自住房，扣掉交易成本并还清房贷")
 
     s.energy = quoted["energy_after"]
+    s.condition = quoted["condition_next"]
     s.stress += WORK_STRESS[quoted["employment"]]
     s.autonomy += WORK_AUTONOMY[quoted["employment"]]
     for slot in plan.slots:
@@ -683,6 +700,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         "debt": s.debt,
         "net_worth": net_worth(s),
         "energy": s.energy,
+        "condition": s.condition,
         "stress": s.stress,
         "autonomy": s.autonomy,
         "salary": quoted["salary"],

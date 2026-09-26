@@ -103,9 +103,11 @@ function renderStatus() {
   setText("#energy", `${state.energy}/100`);
   setText("#stress", `${state.stress}/100`);
   setText("#autonomy", `${state.autonomy}/100`);
+  setText("#condition", `${state.condition}/100`);
   document.querySelector("#energy-bar").value = state.energy;
   document.querySelector("#stress-bar").value = state.stress;
   document.querySelector("#autonomy-bar").value = state.autonomy;
+  document.querySelector("#condition-bar").value = state.condition;
   setText("#career", skillText(state.career, state.career_fresh, state.rust_step));
   setText("#venture", skillText(state.venture, state.venture_fresh, state.rust_step));
   setText("#invest", skillText(state.invest, state.invest_fresh, state.rust_step));
@@ -180,7 +182,8 @@ function renderLog() {
     const notes = (row.notes || []).join("；");
     const shown = row.realizable == null ? row.net_worth : row.realizable;
     const shock = row.shock && row.shock !== "none" ? ` · ${row.shock}` : "";
-    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 可兑现 ${wan(shown)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)} · ${row.event}${shock}${notes ? " · " + notes : ""}`;
+    const condition = row.condition == null ? "" : ` · 状态 ${row.condition}`;
+    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 可兑现 ${wan(shown)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)}${condition} · ${row.event}${shock}${notes ? " · " + notes : ""}`;
     list.append(item);
   });
 }
@@ -188,7 +191,7 @@ function renderLog() {
 function ensureSlots() {
   const breaking = document.querySelector("#break-contract").checked;
   const bound = state && state.contract_left > 0 && !breaking;
-  const leave = bound && state.energy < 14;
+  const leave = bound && (state.energy < 14 || state.condition < 40);
   const employment = document.querySelector("#employment");
   employment.disabled = Boolean(bound);
   document.querySelector("#contract").disabled = Boolean(state && state.contract_left > 0 && !breaking);
@@ -255,6 +258,7 @@ function showPreview(payload) {
     quote.home_maintenance ? `维修 ${wan(quote.home_maintenance)}` : "",
     quote.home_sale_net ? `卖房结算 ${wan(quote.home_sale_net)}` : "",
     quote.job_gap ? "这个月交接，没有工资" : "",
+    quote.condition_next != null ? `行动后状态 ${quote.condition_next}` : "",
     quote.consume_slots ? `时间自主 +${quote.consume_autonomy}，下月租房生活费多 ${wan(quote.living_delta_rent)}，已购房多 ${wan(quote.living_delta_own)}` : "",
   ].filter(Boolean).join("，");
   box.textContent = `预计工资 ${wan(quote.salary)}，学费 ${wan(quote.tuition)}，建设 ${wan(quote.build_cost)}，生活费 ${wan(quote.living)}，行动后精力 ${quote.energy_after}。${extra ? extra + "。" : ""}${warnings}`;

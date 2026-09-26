@@ -6,7 +6,7 @@ import argparse
 import statistics
 from collections import Counter
 
-from money_sim.constants import MONTHS
+from money_sim.constants import CONDITION_LOW, MONTHS
 from money_sim.engine import resolve
 from money_sim.policies import POLICIES, ensure_plan
 from money_sim.state import Plan, net_worth, new_game, realizable_net
@@ -52,6 +52,8 @@ def play_once(policy, seed: int) -> dict:
     late_consume = 0
     lifestyle_sum = 0
     lifestyle_peak = state.lifestyle
+    condition_sum = 0
+    low_condition = 0
     while state.status == "playing":
         plan = ensure_plan(state, policy(state))
         signature = plan_signature(plan)
@@ -69,6 +71,8 @@ def play_once(policy, seed: int) -> dict:
         consume_months += int(consuming)
         lifestyle_sum += state.lifestyle
         lifestyle_peak = max(lifestyle_peak, state.lifestyle)
+        condition_sum += state.condition
+        low_condition += int(state.condition < CONDITION_LOW)
         if previous is not None:
             changed = signature != previous
             if month <= 24:
@@ -115,6 +119,10 @@ def play_once(policy, seed: int) -> dict:
         "end_lifestyle": state.lifestyle,
         "mean_lifestyle": lifestyle_sum / max(1, state.month - 1),
         "peak_lifestyle": lifestyle_peak,
+        "mean_condition": condition_sum / max(1, state.month - 1),
+        "low_condition_rate": low_condition / max(1, state.month - 1),
+        "end_condition": state.condition,
+        "free_rate": slot_counter["free"] / max(1, state.month - 1),
         "end_month": state.month - 1,
         "slots": slot_counter,
     }
@@ -156,6 +164,10 @@ def summarize(name: str, rows: list[dict]) -> dict:
         "mean_end_lifestyle": statistics.fmean(row["end_lifestyle"] for row in rows),
         "mean_lifestyle": statistics.fmean(row["mean_lifestyle"] for row in rows),
         "mean_peak_lifestyle": statistics.fmean(row["peak_lifestyle"] for row in rows),
+        "mean_condition": statistics.fmean(row["mean_condition"] for row in rows),
+        "mean_low_condition": statistics.fmean(row["low_condition_rate"] for row in rows),
+        "mean_end_condition": statistics.fmean(row["end_condition"] for row in rows),
+        "mean_free": statistics.fmean(row["free_rate"] for row in rows),
         "late_games": len(late_rows),
         "median_end_month": statistics.median(end_months),
         "suspect_jump_games": sum(row["max_jump"] > 0.55 for row in rows),
@@ -189,7 +201,7 @@ def run_batch(games: int, seed: int, policies=POLICIES) -> dict:
 def format_report(report: dict) -> str:
     lines = [
         f"局数 {report['games']}  种子 {report['seed']}",
-        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  前期学习月占比  后期学习月占比  消费月占比  前期消费  后期消费  平均生活水准  峰值生活水准  终局生活水准  单月最大跳升  可疑暴富局",
+        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  前期学习月占比  后期学习月占比  消费月占比  前期消费  后期消费  平均生活水准  峰值生活水准  终局生活水准  平均状态  低于40占比  终局状态  无工资占比  单月最大跳升  可疑暴富局",
     ]
     for row in report["strategies"]:
         lines.append(
@@ -216,6 +228,10 @@ def format_report(report: dict) -> str:
                     f"{row['mean_lifestyle']:.0f}",
                     f"{row['mean_peak_lifestyle']:.0f}",
                     f"{row['mean_end_lifestyle']:.0f}",
+                    f"{row['mean_condition']:.0f}",
+                    f"{row['mean_low_condition']:.2f}",
+                    f"{row['mean_end_condition']:.0f}",
+                    f"{row['mean_free']:.2f}",
                     f"{row['max_jump']:.1%}",
                     str(row["suspect_wealth_games"]),
                 ]

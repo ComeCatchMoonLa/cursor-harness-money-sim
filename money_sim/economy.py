@@ -9,6 +9,13 @@ from money_sim.constants import (
     AUTONOMY_REST_LOW,
     AUTONOMY_RUST_RELIEF,
     BASE_LIVING,
+    CONDITION_CONSUME_LOW,
+    CONDITION_CONSUME_MID,
+    CONDITION_EASE,
+    CONDITION_EFFORT,
+    CONDITION_HOLD,
+    CONDITION_REST,
+    CONDITION_WORK,
     CONTRACT_REST_HIGH,
     CONTRACT_REST_LOW,
     CONTRACT_REST_MID,
@@ -141,6 +148,23 @@ def risk_distribution(skill: int, regime: str) -> tuple[float, float, float, flo
     elif regime == "bear":
         mu -= 0.012
     return mu, sigma, -0.45, 0.40
+
+
+def condition_after(condition: int, employment: str, slots: list[str]) -> int:
+    """整月用月初的状态判断补多少。金额不进这个函数。"""
+    delta = CONDITION_WORK.get(employment, CONDITION_WORK["free"])
+    for slot in slots:
+        if slot == "rest":
+            if condition < CONDITION_EASE:
+                delta += CONDITION_REST
+        elif slot == "consume":
+            if condition < CONDITION_HOLD:
+                delta += CONDITION_CONSUME_LOW
+            elif condition < CONDITION_EASE:
+                delta += CONDITION_CONSUME_MID
+        elif slot == "venture" or slot.startswith("learn_"):
+            delta -= CONDITION_EFFORT
+    return clamp(condition + delta, 0, 100)
 
 
 def consume_lifestyle_gain(spend: int) -> int:
