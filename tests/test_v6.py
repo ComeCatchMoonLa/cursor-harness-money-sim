@@ -129,6 +129,17 @@ class ConsumeRuleTests(unittest.TestCase):
         self.assertTrue(any("掉了 2 点" in note for note in rested_next["notes"]))
         self.assertTrue(any("掉了 1 点" in note for note in spent_next["notes"]))
 
+    def test_lifestyle_charge_stops_at_the_cap(self):
+        state = _ready()
+        state.lifestyle = 219
+        plan = Plan("full", ["consume"], consume_cash=MIN_CONSUME)
+        quoted = quote(state, plan)
+        out, errors, report = resolve(state, plan)
+        self.assertEqual(errors, [])
+        self.assertEqual(out.lifestyle, 220)
+        self.assertEqual(report["living"], quoted["living"])
+        self.assertEqual(quoted["living"], living_cost(220, state.price_index))
+
     def test_outlook_uses_the_engine_delta(self):
         outlook = consume_outlook(100, 1000, MIN_CONSUME, True)
         self.assertEqual(outlook["charged_lifestyle"], 102)

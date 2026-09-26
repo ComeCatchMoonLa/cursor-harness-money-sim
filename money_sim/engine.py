@@ -514,6 +514,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         s.stress -= consume_stress_relief(plan.consume_cash)
         s.lifestyle += consume_lifestyle_gain(plan.consume_cash)
         s.network += consume_network_gain(plan.consume_cash)
+    s.lifestyle = clamp(s.lifestyle, 100, 220)
 
     overdraft = quoted["energy_after"] < 0
     if overdraft:
