@@ -7,11 +7,12 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from money_sim.constants import LOG_FIELDS, REGIME_LABEL
 from money_sim.economy import exit_pct, living_cost, rent_of, salary
 from money_sim.engine import ease_of, preview, resolve
+from money_sim.match import match_report
 from money_sim.state import Plan, from_save_dict, new_game, public_view, to_save_dict
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -150,6 +151,19 @@ def make_server(host: str, port: int, log_path: Path, save_path: Path, seed: int
             if path == "/api/state":
                 with session.lock:
                     self._json(200, session.payload())
+                return
+            if path == "/api/match":
+                query = parse_qs(urlparse(self.path).query)
+                left = query.get("left", ["steady"])[0]
+                right = query.get("right", ["coast"])[0]
+                with session.lock:
+                    player = [row.get("employment") for row in session.recent]
+                    try:
+                        body = match_report(session.state.seed, player, left, right)
+                    except ValueError as exc:
+                        self._json(400, {"error": str(exc)})
+                        return
+                    self._json(200, body)
                 return
             self._json(404, {"error": "没有这个接口"})
 

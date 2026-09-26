@@ -311,11 +311,106 @@ async function resolveMonth() {
     renderStatus();
     showPreview(null);
     schedulePreview();
+    await refreshMatch();
   } catch (error) {
     document.querySelector("#preview").textContent = error.message;
   } finally {
     button.disabled = !state || state.status !== "playing";
   }
+}
+
+function collapseRoutes(routes) {
+  const seen = new Set();
+  const kept = [];
+  for (const route of routes) {
+    if (seen.has(route.stake)) {
+      continue;
+    }
+    seen.add(route.stake);
+    kept.push(route);
+  }
+  return kept;
+}
+
+function fillMatchSelects(routes) {
+  for (const id of ["match-left", "match-right"]) {
+    const select = document.querySelector(`#${id}`);
+    const previous = select.value;
+    select.replaceChildren();
+    for (const route of routes) {
+      const option = document.createElement("option");
+      option.value = route.name;
+      option.textContent = route.title;
+      select.append(option);
+    }
+    if (previous) {
+      select.value = previous;
+    }
+  }
+  const left = document.querySelector("#match-left");
+  const right = document.querySelector("#match-right");
+  if (!left.value) {
+    left.value = "steady";
+  }
+  if (!right.value || right.value === left.value) {
+    right.value = routes.some((route) => route.name === "coast") ? "coast" : routes[routes.length - 1].name;
+  }
+}
+
+const EMPLOY_TEXT = { full: "全职", light: "轻职", part: "兼职", free: "不拿固定工资" };
+
+function employmentText(value) {
+  if (!value) {
+    return "—";
+  }
+  return EMPLOY_TEXT[value] || value;
+}
+
+function renderMatch(data) {
+  const note = document.querySelector("#match-note");
+  if (!data.months.length) {
+    note.textContent = "还没有结算。这一月分不开。这里不替你选。";
+  } else if (!data.closer) {
+    note.textContent = "这一月分不开。这里不替你选。";
+  } else {
+    note.textContent = `更接近${data.closer_title}。这里不替你选。`;
+  }
+  const table = document.querySelector("#match-table");
+  table.replaceChildren();
+  if (!data.months.length) {
+    return;
+  }
+  const leftTitle = document.querySelector("#match-left").selectedOptions[0].textContent;
+  const rightTitle = document.querySelector("#match-right").selectedOptions[0].textContent;
+  const head = document.createElement("tr");
+  for (const text of ["月", "你", leftTitle, rightTitle]) {
+    const cell = document.createElement("th");
+    cell.textContent = text;
+    head.append(cell);
+  }
+  table.append(head);
+  for (const row of data.months) {
+    const line = document.createElement("tr");
+    for (const value of [String(row.month), employmentText(row.player), employmentText(row.left), employmentText(row.right)]) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      line.append(cell);
+    }
+    table.append(line);
+  }
+}
+
+async function refreshMatch() {
+  const left = document.querySelector("#match-left").value;
+  const right = document.querySelector("#match-right").value;
+  const note = document.querySelector("#match-note");
+  if (!left || !right || left === right) {
+    note.textContent = "要两条不同的路线。";
+    document.querySelector("#match-table").replaceChildren();
+    return;
+  }
+  const data = await api(`/api/match?left=${encodeURIComponent(left)}&right=${encodeURIComponent(right)}`);
+  renderMatch(data);
 }
 
 async function loadRoutes() {
@@ -327,24 +422,29 @@ async function loadRoutes() {
     }
     const data = await response.json();
     document.querySelector("#routes-note").textContent = `种子 ${data.seed}，每种 ${data.games} 局。工作强度和时间自主看第 37 到 72 月。至少两个轴分开才留下。这里不替你选这个月的方案。`;
+    const routes = collapseRoutes(data.routes);
     const list = document.querySelector("#routes");
     list.replaceChildren();
-    for (const route of data.routes) {
+    for (const route of routes) {
       const item = document.createElement("article");
       item.className = "route";
       item.dataset.testid = `route-${route.name}`;
       const title = document.createElement("h3");
       title.textContent = route.title;
+      const stake = document.createElement("p");
+      stake.textContent = route.stake;
       const axes = document.createElement("p");
       axes.className = "axes";
       const month = route.median_win_month == null ? "没有赢的局" : `中位第 ${Math.round(route.median_win_month)} 月`;
       axes.textContent = `达成 ${(route.win_rate * 100).toFixed(1)}% · ${month} · 硬失败 ${(route.hard_fail_rate * 100).toFixed(1)}% · 强度 ${Number(route.mean_intensity).toFixed(2)} · 自主 ${Number(route.mean_autonomy).toFixed(1)}`;
       const line = document.createElement("p");
       line.textContent = route.mainline;
-      item.append(title, axes, line);
+      item.append(title, stake, axes, line);
       list.append(item);
     }
+    fillMatchSelects(routes);
     panel.hidden = false;
+    await refreshMatch();
   } catch (_error) {
     panel.hidden = true;
   }
@@ -379,11 +479,14 @@ document.querySelector("#employment").addEventListener("change", () => {
   document.querySelector(selector).addEventListener("change", schedulePreview);
 });
 document.querySelector("#btn-resolve").addEventListener("click", resolveMonth);
+document.querySelector("#match-left").addEventListener("change", refreshMatch);
+document.querySelector("#match-right").addEventListener("change", refreshMatch);
 document.querySelector("#btn-new").addEventListener("click", async () => {
   state = await api("/api/new", {});
   resetForm();
   renderStatus();
   schedulePreview();
+  await refreshMatch();
 });
 document.querySelector("#btn-save").addEventListener("click", async () => {
   state = (await api("/api/save", {})).state;
@@ -395,6 +498,7 @@ document.querySelector("#btn-load").addEventListener("click", async () => {
     resetForm();
     renderStatus();
     schedulePreview();
+    await refreshMatch();
   } catch (error) {
     document.querySelector("#preview").textContent = error.message;
   }

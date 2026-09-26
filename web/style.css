@@ -143,6 +143,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .route h3 { margin: 0 0 4px; font-size: 1rem; }
 .route .axes { color: #6d6458; font-size: 0.88rem; }
 #routes-panel { margin: 16px 0; }
+.match-picks { display: flex; gap: 16px; margin-top: 12px; }
+.match-picks select { margin-left: 6px; }
+#match-note { margin-top: 12px; }
+#match-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9rem; }
+#match-table th, #match-table td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid #ddd4c6; }
 .rules { margin: 0; padding-left: 1.1rem; }
 
 @media (max-width: 860px) {
