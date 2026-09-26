@@ -13,6 +13,10 @@ from money_sim.constants import (
     CONTRACT_REST_LOW,
     CONTRACT_REST_MID,
     HOME_BASIS,
+    JOB_OFFER_BUMP,
+    JOB_OFFER_BUMP_CAP,
+    JOB_OFFER_BUMP_FLOOR,
+    JOB_OFFER_FRESH,
     HOME_DOWN_DEN,
     HOME_DOWN_NUM,
     HOME_MAINT_DEN,
@@ -196,6 +200,14 @@ def home_maintenance(value: int) -> int:
 
 def home_proceeds(value: int, keep_pct: int) -> int:
     return value * keep_pct // 100 if value > 0 else 0
+
+
+def outside_offer(career: int, network: int, fresh: int) -> int:
+    """外部全职报价。新鲜度决定加减，不再另掷一个金额。"""
+    base = salary(career, network, "full")
+    bump = (fresh - JOB_OFFER_FRESH) * JOB_OFFER_BUMP
+    bump = max(JOB_OFFER_BUMP_FLOOR, min(JOB_OFFER_BUMP_CAP, bump))
+    return max(1, base * (1000 + bump) // 1000)
 
 
 def home_equity(value: int, mortgage: int) -> int:

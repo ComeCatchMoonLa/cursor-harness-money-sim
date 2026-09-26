@@ -29,7 +29,10 @@ class Session:
     def payload(self) -> dict:
         state = self.state
         view = public_view(state)
-        view["salary_full"] = salary(state.career, state.network, "full")
+        if state.offer_left > 0 and not state.offer_gap:
+            view["salary_full"] = state.offer_pay
+        else:
+            view["salary_full"] = salary(state.career, state.network, "full")
         view["salary_part"] = salary(state.career, state.network, "part")
         full_living = living_cost(state.lifestyle, state.price_index)
         view["living"] = full_living - rent_of(full_living) if state.home_value else full_living
@@ -86,6 +89,7 @@ def parse_plan(data: dict) -> Plan:
         unlock=bool(data.get("unlock", False)),
         buy_home=bool(data.get("buy_home", False)),
         sell_home=bool(data.get("sell_home", False)),
+        accept_job=bool(data.get("accept_job", False)),
     )
 
 

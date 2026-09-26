@@ -28,6 +28,7 @@ def plan_signature(plan: Plan) -> tuple:
         plan.unlock,
         plan.buy_home,
         plan.sell_home,
+        plan.accept_job,
     )
 
 

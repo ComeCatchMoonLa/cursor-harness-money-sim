@@ -39,6 +39,11 @@ from money_sim.constants import (
     SHOCK_BOOK_PCT,
     SHOCK_INDEX_PCT,
     HOME_DISTRESS_KEEP,
+    JOB_OFFER_AUTONOMY,
+    JOB_OFFER_FRESH,
+    JOB_OFFER_MONTHS,
+    JOB_OFFER_P_FRESH,
+    JOB_OFFER_P_STALE,
     HOME_DRIFT,
     HOME_SELL_COST,
     MORTGAGE_RATE_DEN,
@@ -78,6 +83,7 @@ from money_sim.economy import (
     learn_gain,
     living_cost,
     mortgage_payment,
+    outside_offer,
     rent_of,
     risk_distribution,
     rust_step,
@@ -159,7 +165,13 @@ def quote(state: GameState, plan: Plan) -> dict:
         proceeds = state.business_book * pct // 100
         book_for_exit = state.business_book
 
-    pay = salary(state.career, state.network, employment)
+    taking_offer = bool(plan.accept_job and state.pending_offer > 0 and employment == "full" and not bound["leave"])
+    if taking_offer:
+        pay = 0
+    elif state.offer_left > 0 and employment == "full" and not state.offer_gap:
+        pay = state.offer_pay
+    else:
+        pay = salary(state.career, state.network, employment)
     bonus = 0
     penalty = 0
     if plan.break_contract and state.contract_left > 0:
@@ -195,6 +207,7 @@ def quote(state: GameState, plan: Plan) -> dict:
         "bonus": bonus,
         "penalty": penalty,
         "leave": bound["leave"],
+        "job_gap": taking_offer,
         "employment": employment,
         "operating": operating,
         "living": _housing_living(state, will_own),
@@ -295,6 +308,13 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         errors.append("已经有一套自住房")
     if plan.sell_home and state.home_value <= 0:
         errors.append("没有房子可卖")
+    if plan.accept_job:
+        if state.pending_offer <= 0:
+            errors.append("这个月没有外部报价")
+        elif bound["leave"] or bound["employment"] != "full":
+            errors.append("这份报价要这个月上全职")
+        elif state.contract_left > 0 and not plan.break_contract:
+            errors.append("还在合同里，跳槽要先违约")
     if plan.debt_pay > state.debt:
         errors.append("还债不能超过负债")
     if plan.risk_pct > 0 and "invest" not in plan.slots:
@@ -349,6 +369,8 @@ def preview(state: GameState, plan: Plan) -> dict:
     if bound_rest := quoted.get("contract_rest"):
         if commitment(state, plan)["contracted_pay"] and "rest" in plan.slots:
             warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
+    if quoted["job_gap"]:
+        warnings.append("接手外部报价的这个月没有工资，月供和生活费照付，技能不加。")
     if plan.buy_home and not errors:
         warnings.append("买下之后可兑现会先掉一截，月供停不下来，房子也不能当月按市价拿回来。")
     if state.regime == "bear" and (plan.buy_home or state.home_value > 0):
@@ -392,6 +414,13 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
     regime = s.regime
     start_autonomy = s.autonomy
     offer_pct = s.offer_exit_pct
+    if plan.accept_job and s.pending_offer > 0 and quoted["job_gap"]:
+        s.offer_pay = s.pending_offer
+        s.offer_left = JOB_OFFER_MONTHS
+        s.offer_gap = True
+        s.pending_offer = 0
+        s.autonomy = max(8, s.autonomy - JOB_OFFER_AUTONOMY)
+        notes.append("接了外部报价，这个月交接，没有工资，技能不加")
 
     if quoted["exiting"]:
         _move(s, "book", -quoted["exit_book"], "exit_book", ledger)
@@ -599,6 +628,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         notes.append(f"封闭 {s.locked} 元指数，{LOCK_TERM} 个月内不能卖")
 
     _apply_rust(s, plan, resolved_month, start_autonomy, notes)
+    _roll_job_offer(s, quoted, rng, notes)
 
     worth = realizable_net(s)
     fail_reason = None
@@ -674,6 +704,8 @@ def _apply_rust(state: GameState, plan: Plan, month: int, autonomy: int, notes: 
     for attr, fresh_attr, learn_slot, practice_slot, label in specs:
         learned = learn_slot in plan.slots
         practiced = learned or (practice_slot is not None and practice_slot in plan.slots)
+        if attr == "career" and state.offer_gap:
+            practiced = True
         fresh = getattr(state, fresh_attr)
         if learned:
             cap = FRESH_LEARN_LATE if month >= LATE_FRESH_MONTH else FRESH_LEARN_EARLY
@@ -753,6 +785,30 @@ def _apply_event(state, rng, employment, salary_paid, gross, ledger, notes) -> s
         _move(state, "cash", bonus, "boom", ledger)
         notes.append("旺季多了一笔有上限的进账")
     return picked
+
+
+def _roll_job_offer(state: GameState, quoted: dict, rng, notes: list[str]) -> None:
+    if quoted["employment"] != "full" and state.offer_left > 0 and not state.offer_gap:
+        state.offer_left = 0
+        state.offer_pay = 0
+        notes.append("没有继续全职，外部报价失效")
+    if state.offer_gap:
+        state.offer_gap = False
+    elif state.offer_left > 0:
+        state.offer_left -= 1
+        if state.offer_left == 0:
+            state.offer_pay = 0
+            notes.append("外部报价到期，工资回到按技能算")
+    employed = quoted["employment"] in ("full", "part") and not quoted["leave"]
+    if state.offer_left == 0 and employed and state.status == "playing":
+        chance = JOB_OFFER_P_FRESH if state.career_fresh >= JOB_OFFER_FRESH else JOB_OFFER_P_STALE
+        if rng.random() < chance:
+            state.pending_offer = outside_offer(state.career, state.network, state.career_fresh)
+            notes.append(f"有一份外部全职报价，月薪 {state.pending_offer} 元")
+        else:
+            state.pending_offer = 0
+    else:
+        state.pending_offer = 0
 
 
 def _buy_home(state: GameState, ledger: list[dict], notes: list[str]) -> None:

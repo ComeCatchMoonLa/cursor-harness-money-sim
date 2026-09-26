@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from money_sim.constants import LOW_ENERGY_FULL, MIN_CONSUME, TOTAL_SLOTS, WORK_SLOTS
-from money_sim.economy import down_and_loan, home_price, living_cost, mortgage_payment, salary
+from money_sim.economy import (
+    down_and_loan,
+    home_maintenance,
+    home_price,
+    living_cost,
+    mortgage_payment,
+    rent_of,
+    salary,
+)
 from money_sim.engine import quote, validate
 from money_sim.state import GameState, Plan
 
@@ -112,19 +120,31 @@ def policy_steady(state: GameState) -> Plan:
     sellable = _sellable(state)
     if state.lock_left == 0 and from_index == 0 and state.regime == "bull" and sellable >= 120_000 and state.cash > buffer:
         lock_amount = sellable // 10
-    return ensure_plan(
-        state,
-        Plan(
-            employment,
-            slots,
-            to_index=to_index,
-            from_index=from_index,
-            debt_pay=debt_pay,
-            risk_pct=risk,
-            sign_months=sign,
-            lock_amount=lock_amount,
-        ),
+    plan = Plan(
+        employment,
+        slots,
+        to_index=to_index,
+        from_index=from_index,
+        debt_pay=debt_pay,
+        risk_pct=risk,
+        sign_months=sign,
+        lock_amount=lock_amount,
     )
+    return ensure_plan(state, _consider_offer(state, plan))
+
+
+def _consider_offer(state: GameState, plan: Plan) -> Plan:
+    """报价高于现在的工资、没有合同、交接月付得起生活费和月供，才接。"""
+    market = salary(state.career, state.network, "full")
+    if state.pending_offer <= market or state.contract_left > 0 or state.energy < LOW_ENERGY_FULL:
+        return plan
+    full = living_cost(state.lifestyle, state.price_index)
+    living = full - rent_of(full) if state.home_value else full
+    due = living + state.mortgage_payment + home_maintenance(state.home_value)
+    if state.cash < due or plan.employment != "full":
+        return plan
+    plan.accept_job = True
+    return plan
 
 
 def policy_grind(state: GameState) -> Plan:
@@ -297,6 +317,7 @@ def policy_nest(state: GameState) -> Plan:
         risk_pct=base.risk_pct,
         sign_months=base.sign_months,
         buy_home=True,
+        accept_job=base.accept_job,
     )
     if not validate(state, trial):
         return trial

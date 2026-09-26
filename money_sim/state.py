@@ -80,6 +80,10 @@ class GameState:
     home_value: int = 0
     mortgage: int = 0
     mortgage_payment: int = 0
+    pending_offer: int = 0
+    offer_pay: int = 0
+    offer_left: int = 0
+    offer_gap: bool = False
     history: list[int] = field(default_factory=list)
     last_report: dict | None = None
 
@@ -122,6 +126,10 @@ class GameState:
             home_value=self.home_value,
             mortgage=self.mortgage,
             mortgage_payment=self.mortgage_payment,
+            pending_offer=self.pending_offer,
+            offer_pay=self.offer_pay,
+            offer_left=self.offer_left,
+            offer_gap=self.offer_gap,
             history=list(self.history),
             last_report=self.last_report,
         )
@@ -146,6 +154,7 @@ class Plan:
     unlock: bool = False
     buy_home: bool = False
     sell_home: bool = False
+    accept_job: bool = False
 
 
 def rng_of(state: GameState) -> random.Random:
@@ -216,6 +225,10 @@ def to_save_dict(state: GameState) -> dict:
         "home_value": state.home_value,
         "mortgage": state.mortgage,
         "mortgage_payment": state.mortgage_payment,
+        "pending_offer": state.pending_offer,
+        "offer_pay": state.offer_pay,
+        "offer_left": state.offer_left,
+        "offer_gap": state.offer_gap,
         "history": list(state.history),
         "last_report": state.last_report,
     }
@@ -261,6 +274,10 @@ def from_save_dict(data: dict) -> GameState:
         home_value=int(data.get("home_value", 0)),
         mortgage=int(data.get("mortgage", 0)),
         mortgage_payment=int(data.get("mortgage_payment", 0)),
+        pending_offer=int(data.get("pending_offer", 0)),
+        offer_pay=int(data.get("offer_pay", 0)),
+        offer_left=int(data.get("offer_left", 0)),
+        offer_gap=bool(data.get("offer_gap", False)),
         history=[int(x) for x in data["history"]],
         last_report=data.get("last_report"),
     )
@@ -279,6 +296,9 @@ def _housing_view(state: GameState) -> dict:
         "home_price": price,
         "down_payment": down,
         "next_payment": state.mortgage_payment if state.home_value else mortgage_payment(loan),
+        "pending_offer": state.pending_offer,
+        "offer_pay": state.offer_pay,
+        "offer_left": state.offer_left,
     }
 
 
