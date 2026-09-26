@@ -272,8 +272,14 @@ def ship_notches(old_holdout: list[dict], new_holdout: list[dict], seed1_notched
     return True
 
 
+# 留出种子 10001–11000、改常数之前。nest、ease 并进 steady。数字在 docs/dev/测试/v11-balance.md。
+HOLDOUT_MERGED = {"nest": "steady", "ease": "steady"}
+
+
 def starting_policies():
-    return tuple(POLICIES) + tuple(PROMOTED)
+    skipped = set(HOLDOUT_MERGED)
+    kept = tuple((name, policy) for name, policy in POLICIES if name not in skipped)
+    return kept + tuple(PROMOTED)
 
 
 def search_routes(games: int, seed: int) -> dict:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from money_sim.routes import rank_names, retain_routes, ship_notches
+from money_sim.routes import HOLDOUT_MERGED, rank_names, retain_routes, ship_notches, starting_policies
 
 
 def _row(name: str, **overrides) -> dict:
@@ -60,6 +60,13 @@ class RetainTests(unittest.TestCase):
             _row("yolo", win_rate=0.0, median_win_month=None),
         ]
         self.assertEqual(rank_names(rows), ["steady", "nest", "yolo"])
+
+
+class RouteListTests(unittest.TestCase):
+    def test_holdout_merge_drops_nest_and_ease_from_the_listed_routes(self):
+        names = [name for name, _policy in starting_policies()]
+        self.assertEqual(names, ["steady", "grind", "yolo", "owner", "coast"])
+        self.assertEqual(HOLDOUT_MERGED, {"nest": "steady", "ease": "steady"})
 
 
 class NotchTests(unittest.TestCase):
