@@ -122,14 +122,17 @@ class EasePolicyTests(unittest.TestCase):
         self.assertEqual(stayed.sign_months, 0)
         self.assertEqual(policy_steady(bull).sign_months, 6)
 
-    def test_bull_market_and_a_healthy_state_keep_full_time(self):
-        bull = _ahead()
-        bull.regime = "bull"
-        self.assertNotEqual(policy_ease(bull).employment, "light")
+    def test_a_recovered_state_stays_on_light_and_a_bull_market_does_not(self):
         healthy = _ahead()
         healthy.condition = 70
         healthy.autonomy = 70
-        self.assertNotEqual(policy_ease(healthy).employment, "light")
+        stayed = policy_ease(healthy)
+        self.assertEqual(stayed.employment, "light")
+        self.assertEqual(len(stayed.slots), 2)
+        bull = healthy.clone()
+        bull.regime = "bull"
+        self.assertNotEqual(policy_ease(bull).employment, "light")
+        self.assertEqual(policy_steady(healthy).employment, "full")
 
     def test_contract_rejects_light_and_light_cannot_sign(self):
         bound = _ahead()

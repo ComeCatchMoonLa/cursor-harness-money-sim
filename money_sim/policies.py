@@ -384,10 +384,10 @@ def policy_nest(state: GameState) -> Plan:
 
 
 def policy_ease(state: GameState) -> Plan:
-    """最多按三分之一局的全职储蓄已经够碰 150 万时，可以改轻职。状态已经在掉、又不是景气月才换；健康或还差一截时继续全职。
+    """最多按三分之一局的全职储蓄已经够碰 150 万时，改轻职并停住。
 
-    到了这个位置就不再续签。合同把就业锁死，续签的话少工作永远排不上。
-    已经签着的合同不违约，违约要赔两个月工资，那一刀通常比少掉的工资更狠。
+    状态恢复了不回到全职，否则过渡只出现在状态差的那几个月。
+    景气月仍继续全职。到了这个位置就不再续签。已经签着的合同不违约。
     """
     base = policy_steady(state)
     position = ease_of(state)
@@ -401,7 +401,7 @@ def policy_ease(state: GameState) -> Plan:
         or state.contract_left > 0
     ):
         return base
-    if state.condition < 40 or state.energy < 24 or (state.condition >= 58 and state.autonomy >= 64):
+    if state.condition < 40 or state.energy < 24:
         return base
     slots: list[str] = []
     refresh_at = 3 if state.month >= 48 else 1

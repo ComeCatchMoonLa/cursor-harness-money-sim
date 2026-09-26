@@ -415,7 +415,7 @@ def preview(state: GameState, plan: Plan) -> dict:
     if quoted["job_gap"]:
         warnings.append("接手外部报价的这个月没有工资，月供和生活费照付。这份报价本身不加技能，学习仍然算。")
     if quoted["employment"] == "light":
-        warnings.append("轻职工资低于全职，时间自主会上去。景气好或者状态还够的时候，继续全职可能更合适。")
+        warnings.append("轻职工资低于全职，时间自主会上去。状态恢复了仍可以留在轻职。景气月继续全职往往更合适。")
     if quoted["employment"] == "full" and quoted["condition_next"] < CONDITION_LOW:
         warnings.append("下月状态低于 40，不能再全职。合同还在就会停薪请假。")
     if quoted["consume_slots"]:
