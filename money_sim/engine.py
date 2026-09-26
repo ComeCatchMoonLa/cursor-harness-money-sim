@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from money_sim.constants import (
+    BREACH_MONTHS,
+    BREACH_STRESS,
     BUILD_COST,
     BUILDS_TO_LAUNCH,
     BURNOUT_LIMIT,
+    CONTRACT_TERMS,
     DEBT_CAP,
     DEBT_RATE_DEN,
     DEBT_RATE_NUM,
@@ -15,7 +18,10 @@ from money_sim.constants import (
     EMERGENCY_FEE_NUM,
     INDEX_SELL_FEE_DEN,
     INDEX_SELL_FEE_NUM,
+    LEAVE_STRESS,
     LEGAL_SLOTS,
+    LOCK_MU_BONUS,
+    LOCK_TERM,
     LOW_ENERGY_FULL,
     MIN_CONSUME,
     MONTHS,
@@ -26,7 +32,11 @@ from money_sim.constants import (
     REGIME_SWITCH_P,
     STRESS_BLOCK_REGEN,
     TOTAL_SLOTS,
+    TRIAL_DEMAND_NUM,
+    TRIAL_MONTHS,
     TUITION,
+    UNLOCK_HAIRCUT_DEN,
+    UNLOCK_HAIRCUT_NUM,
     WIN_NET,
     WORK_AUTONOMY,
     WORK_ENERGY,
@@ -51,7 +61,7 @@ from money_sim.economy import (
     risk_distribution,
     salary,
 )
-from money_sim.state import GameState, Plan, net_worth, rng_of, store_rng
+from money_sim.state import GameState, Plan, net_worth, realizable_net, rng_of, store_rng
 
 
 def _as_int(value: object) -> int | None:
@@ -60,37 +70,57 @@ def _as_int(value: object) -> int | None:
     return value
 
 
+def commitment(state: GameState, plan: Plan) -> dict:
+    """合同把就业锁死。精力不够时这个月停薪请假，而不是把局卡死。"""
+    bound = state.contract_left > 0 and not plan.break_contract
+    leave = bound and state.energy < LOW_ENERGY_FULL
+    if leave:
+        employment = "free"
+    elif bound:
+        employment = "full"
+    else:
+        employment = plan.employment
+    return {
+        "employment": employment,
+        "bound": bound,
+        "leave": leave,
+        "contracted_pay": bound and not leave,
+    }
+
+
 def quote(state: GameState, plan: Plan) -> dict:
     """确定性报价。随机收益不在这里。"""
+    bound = commitment(state, plan)
+    employment = bound["employment"] if bound["employment"] in WORK_SLOTS else "free"
     exiting = bool(plan.exit_business or plan.accept_offer)
     venture_slots = sum(1 for slot in plan.slots if slot == "venture")
     learn_slots = sum(1 for slot in plan.slots if slot.startswith("learn_"))
     consume_slots = sum(1 for slot in plan.slots if slot == "consume")
 
-    stage = state.business_stage
+    start_stage = state.business_stage
+    stage = start_stage
     progress = state.business_progress
     builds = 0
-    if not exiting and stage != "running":
+    if not exiting and stage not in ("running", "trial"):
         for _ in range(venture_slots):
-            if stage == "running":
+            if stage in ("running", "trial"):
                 break
             builds += 1
             progress += 1
             if stage == "none":
                 stage = "building"
             if progress >= BUILDS_TO_LAUNCH:
-                stage = "running"
+                stage = "trial"
                 progress = BUILDS_TO_LAUNCH
+    operating = start_stage in ("trial", "running")
     if exiting:
         stage_after = "none"
         progress_after = 0
-        will_run = False
         attention = 0
     else:
         stage_after = stage
         progress_after = progress
-        will_run = stage == "running"
-        attention = venture_slots if will_run else 0
+        attention = venture_slots if operating else 0
 
     book_for_exit = state.business_book if exiting else 0
     pct = 0
@@ -100,25 +130,38 @@ def quote(state: GameState, plan: Plan) -> dict:
         proceeds = state.business_book * pct // 100
         book_for_exit = state.business_book
 
-    pay = salary(state.career, state.network, plan.employment)
+    pay = salary(state.career, state.network, employment)
+    bonus = 0
+    penalty = 0
+    if plan.break_contract and state.contract_left > 0:
+        penalty = salary(state.career, state.network, "full") * BREACH_MONTHS
     build_cost = builds * BUILD_COST
     tuition = learn_slots * TUITION
     sell_proceeds = plan.from_index * (INDEX_SELL_FEE_DEN - INDEX_SELL_FEE_NUM) // INDEX_SELL_FEE_DEN
-    cash_after = state.cash + pay + proceeds - tuition - build_cost - plan.consume_cash
+    cash_after = state.cash + pay + bonus + proceeds - penalty - tuition - build_cost - plan.consume_cash
     cash_after -= plan.to_index + plan.to_business + plan.debt_pay
     cash_after += sell_proceeds
-    energy_after = state.energy + WORK_ENERGY[plan.employment]
+    energy_after = state.energy + WORK_ENERGY[employment]
     for slot in plan.slots:
-        energy_after += SLOT_ENERGY[slot]
+        gain = SLOT_ENERGY[slot]
+        # 合同月不能真正下班，休息只能勉强维持。
+        if slot == "rest" and bound["contracted_pay"]:
+            gain = min(gain, 10)
+        energy_after += gain
     return {
         "salary": pay,
+        "bonus": bonus,
+        "penalty": penalty,
+        "leave": bound["leave"],
+        "employment": employment,
+        "operating": operating,
         "living": living_cost(state.lifestyle, state.price_index),
         "tuition": tuition,
         "build_cost": build_cost,
         "builds": builds,
         "stage_after": stage_after,
         "progress_after": progress_after,
-        "will_run": will_run,
+        "will_run": operating,
         "attention": attention,
         "exit_pct": pct,
         "exit_proceeds": proceeds,
@@ -138,7 +181,23 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         return ["本局已结束"]
     if plan.employment not in WORK_SLOTS:
         return ["就业形态无效"]
-    if plan.employment == "full" and state.energy < LOW_ENERGY_FULL:
+    bound = commitment(state, plan)
+    if plan.sign_months not in (0, *CONTRACT_TERMS):
+        errors.append("合同期限只能是 6 或 12 个月")
+    if plan.sign_months and plan.break_contract:
+        errors.append("同一个月不能又签又违约")
+    if plan.sign_months and state.contract_left and not plan.break_contract:
+        errors.append("合同没到期，不能再签")
+    if plan.sign_months and state.energy < LOW_ENERGY_FULL:
+        errors.append("精力不够，这个月签了也上不了班")
+    if plan.break_contract and state.contract_left <= 0:
+        errors.append("没有合同可违约")
+    if bound["leave"]:
+        if plan.employment != "free":
+            errors.append("这个月是病假，要自己安排时间")
+    elif bound["bound"] and plan.employment != "full":
+        errors.append("合同没到期")
+    elif plan.employment == "full" and state.energy < LOW_ENERGY_FULL:
         errors.append("精力不足，无法全职")
     need = TOTAL_SLOTS - WORK_SLOTS[plan.employment]
     if len(plan.slots) != need:
@@ -153,6 +212,7 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         "还债": plan.debt_pay,
         "消费金额": plan.consume_cash,
         "风险仓位": plan.risk_pct,
+        "封闭金额": plan.lock_amount,
     }
     for name, value in numbers.items():
         parsed = _as_int(value)
@@ -166,8 +226,17 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         errors.append("风险仓位不能超过 100")
     if plan.to_index and plan.from_index:
         errors.append("同一个月不能又买又卖指数")
-    if plan.from_index > state.portfolio:
-        errors.append("指数仓位不够卖")
+    liquid = state.portfolio - state.locked
+    if plan.from_index > max(0, liquid):
+        errors.append("封闭的指数不能卖")
+    if plan.lock_amount and plan.unlock:
+        errors.append("同一个月不能又封闭又解锁")
+    if plan.unlock and state.locked <= 0:
+        errors.append("没有封闭仓可解锁")
+    if plan.lock_amount and state.lock_left > 0:
+        errors.append("封闭还没到期")
+    if plan.lock_amount > max(0, liquid):
+        errors.append("可卖的指数不够封闭")
     if plan.debt_pay > state.debt:
         errors.append("还债不能超过负债")
     if plan.risk_pct > 0 and "invest" not in plan.slots:
@@ -190,8 +259,11 @@ def validate(state: GameState, plan: Plan) -> list[str]:
     if plan.to_business and state.business_stage == "none" and "venture" not in plan.slots:
         errors.append("还没有副业，不能只投钱")
     quoted = quote(state, plan)
-    if plan.automate and not quoted["will_run"]:
-        errors.append("还没开业，不能雇人")
+    if plan.automate and state.business_stage != "running":
+        if state.business_stage == "trial":
+            errors.append("试营业还不能雇人")
+        else:
+            errors.append("还没开业，不能雇人")
     if quoted["cash_after_choices"] < 0:
         errors.append("现金不够完成这些支出")
     return errors
@@ -251,7 +323,23 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         s.business_stage = "none"
         s.business_progress = 0
         s.automated = False
+        s.trial_months = 0
         notes.append(f"退出副业，按账面 {quoted['exit_pct']}% 变现")
+
+    if plan.break_contract:
+        _move(s, "cash", -quoted["penalty"], "breach", ledger)
+        s.contract_left = 0
+        s.contract_term = 0
+        s.stress += BREACH_STRESS
+        notes.append("违约，付了两个月工资")
+    elif plan.sign_months:
+        s.contract_left = plan.sign_months
+        s.contract_term = plan.sign_months
+        _move(s, "cash", quoted["bonus"], "signing_bonus", ledger)
+        notes.append(f"签了 {plan.sign_months} 个月全职")
+    if quoted["leave"]:
+        s.stress += LEAVE_STRESS
+        notes.append("合同月请了病假，没有工资")
 
     _move(s, "cash", quoted["salary"], "salary", ledger)
     if quoted["tuition"]:
@@ -284,8 +372,8 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         _move(s, "debt", -plan.debt_pay, "debt_pay", ledger)
 
     s.energy = quoted["energy_after"]
-    s.stress += WORK_STRESS[plan.employment]
-    s.autonomy += WORK_AUTONOMY[plan.employment]
+    s.stress += WORK_STRESS[quoted["employment"]]
+    s.autonomy += WORK_AUTONOMY[quoted["employment"]]
     for slot in plan.slots:
         s.stress += SLOT_STRESS[slot]
         if slot == "rest":
@@ -312,6 +400,13 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         if s.stress <= STRESS_BLOCK_REGEN:
             s.energy += REGEN
 
+    if plan.unlock and s.locked > 0:
+        haircut = s.locked * UNLOCK_HAIRCUT_NUM // UNLOCK_HAIRCUT_DEN
+        _move(s, "portfolio", -haircut, "unlock_fee", ledger)
+        s.locked = 0
+        s.lock_left = 0
+        notes.append("提前解锁，扣掉一截封闭仓")
+
     risk = (plan.risk_pct / 100) if "invest" in plan.slots else 0.0
     mu, sigma, lo, hi = index_distribution(state.invest, regime)
     index_r = clamp_return(rng.gauss(mu, sigma), lo, hi)
@@ -320,14 +415,25 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         mu_r, sigma_r, lo_r, hi_r = risk_distribution(state.invest, regime)
         risk_r = clamp_return(rng.gauss(mu_r, sigma_r), lo_r, hi_r)
         blended = (1 - risk) * index_r + risk * risk_r
-    invest_return = int(round(s.portfolio * blended))
+    locked_base = min(s.locked, s.portfolio)
+    liquid_base = s.portfolio - locked_base
+    locked_gain = 0
+    if locked_base:
+        lock_r = clamp_return(rng.gauss(mu + LOCK_MU_BONUS, sigma), lo, hi)
+        locked_gain = int(round(locked_base * lock_r))
+    liquid_gain = int(round(liquid_base * blended)) if liquid_base else 0
+    invest_return = locked_gain + liquid_gain
     _move(s, "portfolio", invest_return, "invest_pnl", ledger)
+    if locked_base:
+        s.locked = max(0, min(s.portfolio, locked_base + locked_gain))
 
     business_net = 0
     gross = 0
-    if quoted["will_run"] and s.business_stage == "running":
+    if quoted["operating"] and s.business_stage in ("trial", "running"):
         noise = rng.randint(85, 115)
         demand = demand_bp(regime, state.network, noise)
+        if s.business_stage == "trial":
+            demand = demand * TRIAL_DEMAND_NUM // 100
         gross = business_gross(
             s.business_book,
             state.venture,
@@ -351,7 +457,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         interest = s.debt * DEBT_RATE_NUM // DEBT_RATE_DEN
         _move(s, "cash", -interest, "interest", ledger)
 
-    event = _apply_event(s, rng, plan.employment, quoted["salary"], gross, ledger, notes)
+    event = _apply_event(s, rng, quoted["employment"], quoted["salary"], gross, ledger, notes)
     _settle_liquidity(s, ledger, notes)
 
     if not overdraft:
@@ -378,7 +484,24 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         s.regime = rng.choice(choices)
         notes.append("景气变了")
 
-    worth = net_worth(s)
+    if s.business_stage == "trial" and quoted["operating"]:
+        s.trial_months += 1
+        if s.trial_months >= TRIAL_MONTHS:
+            s.business_stage = "running"
+            notes.append("试营业结束，可以雇人，也可以等收购")
+    if s.contract_left > 0:
+        s.contract_left -= 1
+    if s.lock_left > 0:
+        s.lock_left -= 1
+        if s.lock_left == 0:
+            s.locked = 0
+            notes.append("封闭到期，指数可以卖了")
+    if plan.lock_amount and s.lock_left == 0 and s.locked == 0:
+        s.locked = min(plan.lock_amount, s.portfolio)
+        s.lock_left = LOCK_TERM
+        notes.append(f"封闭 {s.locked} 元指数，{LOCK_TERM} 个月内不能卖")
+
+    worth = realizable_net(s)
     fail_reason = None
     if s.status == "playing" and worth >= WIN_NET:
         s.status = "won"
@@ -407,7 +530,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
             s.offer_exit_pct = rng.randint(78, 92)
             notes.append(f"下月有收购报价，账面的 {s.offer_exit_pct}%")
 
-    s.history.append(net_worth(s))
+    s.history.append(realizable_net(s))
     store_rng(s, rng)
     report = {
         "type": report_type,
@@ -427,6 +550,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         "business_net": business_net,
         "invest_return": invest_return,
         "event": event,
+        "realizable": realizable_net(s),
         "regime": regime,
         "employment": plan.employment,
         "slots": list(plan.slots),
@@ -442,14 +566,14 @@ def _apply_event(state, rng, employment, salary_paid, gross, ledger, notes) -> s
     options: list[tuple[str, float]] = []
     if state.stress > 55:
         options.append(("medical", 0.08))
-    if employment in ("full", "part"):
+    if employment in ("full", "part") and state.contract_left <= 0:
         chance = 0.025
         if state.stress > 70:
             chance += 0.05
         if state.regime == "bear":
             chance += 0.04
         options.append(("layoff", chance))
-    if state.business_stage == "running":
+    if state.business_stage in ("trial", "running"):
         options.append(("setback", 0.05))
         options.append(("boom", 0.05))
     roll = rng.random()
@@ -485,11 +609,13 @@ def _apply_event(state, rng, employment, salary_paid, gross, ledger, notes) -> s
 
 def _settle_liquidity(state: GameState, ledger: list[dict], notes: list[str]) -> None:
     sold_index = False
-    while state.cash < 0 and state.portfolio > 0:
+    while state.cash < 0 and state.portfolio - state.locked > 0:
         need = -state.cash
         unit = EMERGENCY_FEE_DEN - EMERGENCY_FEE_NUM
         sell = (need * EMERGENCY_FEE_DEN + unit - 1) // unit
-        sell = min(state.portfolio, max(1, sell))
+        sell = min(max(0, state.portfolio - state.locked), max(1, sell))
+        if sell <= 0:
+            break
         got = sell * unit // EMERGENCY_FEE_DEN
         _move(state, "portfolio", -sell, "emergency_sell", ledger)
         if got <= 0:
@@ -505,6 +631,7 @@ def _settle_liquidity(state: GameState, ledger: list[dict], notes: list[str]) ->
         state.business_stage = "none"
         state.business_progress = 0
         state.automated = False
+        state.trial_months = 0
         notes.append("现金不够，副业被贱卖")
     if state.cash < 0:
         room = DEBT_CAP - state.debt

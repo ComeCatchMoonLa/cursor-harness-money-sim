@@ -74,6 +74,18 @@ BURNOUT_LIMIT = 3
 REGIME_SWITCH_P = 0.18
 OFFER_P = 0.10
 
+CONTRACT_TERMS = (6, 12)
+BREACH_MONTHS = 2
+BREACH_STRESS = 12
+LEAVE_STRESS = 8
+LOCK_TERM = 12
+UNLOCK_HAIRCUT_NUM = 8
+UNLOCK_HAIRCUT_DEN = 100
+LOCK_MU_BONUS = 0.002
+TRIAL_MONTHS = 4
+TRIAL_DEMAND_NUM = 70
+TRIAL_EXIT_PCT = 40
+
 REGIME_LABEL = {"bull": "景气", "chop": "平淡", "bear": "收缩"}
 
 LOG_FIELDS = (
@@ -92,4 +104,5 @@ LOG_FIELDS = (
     "invest_return",
     "event",
     "fail_reason",
+    "realizable",
 )

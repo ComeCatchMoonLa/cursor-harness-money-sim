@@ -47,9 +47,13 @@ function readPlan() {
     debt_pay: Number(document.querySelector("#debt-pay").value || 0),
     consume_cash: Number(document.querySelector("#consume").value || 0),
     risk_pct: Number(document.querySelector("#risk").value || 0),
+    lock_amount: Number(document.querySelector("#lock-amount").value || 0),
     automate: document.querySelector("#automate").checked,
     exit_business: document.querySelector("#exit").checked,
     accept_offer: document.querySelector("#accept").checked,
+    sign_months: Number(document.querySelector("#contract").value || 0),
+    break_contract: document.querySelector("#break-contract").checked,
+    unlock: document.querySelector("#unlock").checked,
   };
 }
 
@@ -58,10 +62,12 @@ function setText(id, text) {
 }
 
 function renderStatus() {
+  ensureSlots();
   const shownMonth = state.month;
   setText("#month-label", `第 ${state.year} 年 ${state.month_of_year} 月 · 第 ${shownMonth}/108 月`);
   setText("#regime", `景气：${state.regime_label}`);
-  setText("#net-worth", wan(state.net_worth));
+  setText("#net-worth", wan(state.realizable));
+  setText("#book-worth", wan(state.net_worth));
   const history = state.history || [];
   if (history.length >= 2) {
     const delta = history[history.length - 1] - history[history.length - 2];
@@ -70,7 +76,7 @@ function renderStatus() {
   } else {
     setText("#net-delta", "开局 72.00 万");
   }
-  const ratio = Math.max(0, Math.min(1, state.net_worth / state.goal));
+  const ratio = Math.max(0, Math.min(1, state.realizable / state.goal));
   document.querySelector("#goal-bar").style.width = `${(ratio * 100).toFixed(1)}%`;
   const banner = document.querySelector("#status-banner");
   banner.textContent = STATUS_TEXT[state.status] || state.status;
@@ -91,6 +97,8 @@ function renderStatus() {
   setText("#venture", String(state.venture));
   setText("#invest", String(state.invest));
   setText("#lifestyle", `${state.lifestyle}%`);
+  setText("#contract-label", state.contract_left ? `剩余 ${state.contract_left} 个月` : "没有合同");
+  setText("#lock-label", state.lock_left ? `${wan(state.locked)} · 剩余 ${state.lock_left} 个月` : "没有封闭");
   setText("#stage", state.burnout_streak ? `连续透支 ${state.burnout_streak} 个月` : "透支记满 3 个月会过劳失败");
   const full = document.querySelector('#employment option[value="full"]');
   const part = document.querySelector('#employment option[value="part"]');
@@ -151,14 +159,23 @@ function renderLog() {
   rows.slice().reverse().forEach((row) => {
     const item = document.createElement("li");
     const notes = (row.notes || []).join("；");
-    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 净资产 ${wan(row.net_worth)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)} · ${row.event}${notes ? " · " + notes : ""}`;
+    const shown = row.realizable == null ? row.net_worth : row.realizable;
+    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 可兑现 ${wan(shown)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)} · ${row.event}${notes ? " · " + notes : ""}`;
     list.append(item);
   });
 }
 
 function ensureSlots() {
-  const employment = document.querySelector("#employment").value;
-  const locked = WORK_SLOTS[employment];
+  const breaking = document.querySelector("#break-contract").checked;
+  const bound = state && state.contract_left > 0 && !breaking;
+  const leave = bound && state.energy < 14;
+  const employment = document.querySelector("#employment");
+  employment.disabled = Boolean(bound);
+  document.querySelector("#contract").disabled = Boolean(state && state.contract_left > 0 && !breaking);
+  if (leave) employment.value = "free";
+  else if (bound) employment.value = "full";
+  const mode = employment.value;
+  const locked = WORK_SLOTS[mode];
   const work = document.querySelector("#work-slots");
   work.replaceChildren();
   for (let index = 0; index < locked; index += 1) {
@@ -209,7 +226,12 @@ function showPreview(payload) {
   }
   const quote = payload.quote || {};
   const warnings = (payload.warnings || []).join(" ");
-  box.textContent = `预计工资 ${wan(quote.salary)}，学费 ${wan(quote.tuition)}，建设 ${wan(quote.build_cost)}，生活费 ${wan(quote.living)}，行动后精力 ${quote.energy_after}。${warnings}`;
+  const extra = [
+    quote.bonus ? `签约奖金 ${wan(quote.bonus)}` : "",
+    quote.penalty ? `违约金 ${wan(quote.penalty)}` : "",
+    quote.leave ? "这个月停薪请假" : "",
+  ].filter(Boolean).join("，");
+  box.textContent = `预计工资 ${wan(quote.salary)}，学费 ${wan(quote.tuition)}，建设 ${wan(quote.build_cost)}，生活费 ${wan(quote.living)}，行动后精力 ${quote.energy_after}。${extra ? extra + "。" : ""}${warnings}`;
 }
 
 function schedulePreview() {
@@ -237,6 +259,10 @@ async function resolveMonth() {
       return;
     }
     state = result.state;
+    document.querySelector("#contract").value = "0";
+    document.querySelector("#lock-amount").value = "0";
+    document.querySelector("#break-contract").checked = false;
+    document.querySelector("#unlock").checked = false;
     renderStatus();
     showPreview(null);
     schedulePreview();
@@ -256,10 +282,11 @@ async function boot() {
 
 function resetForm() {
   document.querySelector("#employment").value = "full";
-  ["#to-index", "#from-index", "#to-business", "#debt-pay", "#risk", "#consume"].forEach((selector) => {
+  document.querySelector("#contract").value = "0";
+  ["#to-index", "#from-index", "#to-business", "#debt-pay", "#risk", "#consume", "#lock-amount"].forEach((selector) => {
     document.querySelector(selector).value = "0";
   });
-  ["#automate", "#exit", "#accept"].forEach((selector) => {
+  ["#automate", "#exit", "#accept", "#break-contract", "#unlock"].forEach((selector) => {
     document.querySelector(selector).checked = false;
   });
   ensureSlots();
@@ -269,7 +296,7 @@ document.querySelector("#employment").addEventListener("change", () => {
   ensureSlots();
   schedulePreview();
 });
-["#to-index", "#from-index", "#to-business", "#debt-pay", "#risk", "#consume", "#automate", "#exit", "#accept"].forEach((selector) => {
+["#to-index", "#from-index", "#to-business", "#debt-pay", "#risk", "#consume", "#lock-amount", "#contract", "#automate", "#exit", "#accept", "#break-contract", "#unlock"].forEach((selector) => {
   document.querySelector(selector).addEventListener("input", schedulePreview);
   document.querySelector(selector).addEventListener("change", schedulePreview);
 });

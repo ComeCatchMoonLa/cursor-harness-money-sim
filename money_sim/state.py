@@ -23,7 +23,19 @@ from money_sim.constants import (
 
 
 def net_worth(state: "GameState") -> int:
+    """账面。副业按投入的本金计，用来和分录对账。"""
     return state.cash + state.portfolio + state.business_book - state.debt
+
+
+def realizable_net(state: "GameState") -> int:
+    """可兑现。店要按现在退出能拿到的折扣计，封闭的指数仍算你的。"""
+    from money_sim.economy import exit_pct
+
+    book = 0
+    if state.business_stage != "none" and state.business_book > 0:
+        pct = exit_pct(state.business_stage, state.last_business_net, 0, False)
+        book = state.business_book * pct // 100
+    return state.cash + state.portfolio + book - state.debt
 
 
 @dataclass
@@ -54,6 +66,11 @@ class GameState:
     burnout_streak: int = 0
     offer_exit_pct: int = 0
     last_business_net: int = 0
+    contract_left: int = 0
+    contract_term: int = 0
+    locked: int = 0
+    lock_left: int = 0
+    trial_months: int = 0
     history: list[int] = field(default_factory=list)
     last_report: dict | None = None
 
@@ -85,6 +102,11 @@ class GameState:
             burnout_streak=self.burnout_streak,
             offer_exit_pct=self.offer_exit_pct,
             last_business_net=self.last_business_net,
+            contract_left=self.contract_left,
+            contract_term=self.contract_term,
+            locked=self.locked,
+            lock_left=self.lock_left,
+            trial_months=self.trial_months,
             history=list(self.history),
             last_report=self.last_report,
         )
@@ -103,6 +125,10 @@ class Plan:
     automate: bool = False
     exit_business: bool = False
     accept_offer: bool = False
+    sign_months: int = 0
+    break_contract: bool = False
+    lock_amount: int = 0
+    unlock: bool = False
 
 
 def rng_of(state: GameState) -> random.Random:
@@ -129,7 +155,7 @@ def new_game(seed: int | None = None) -> GameState:
         rng_state=list(seq),
         rng_gauss=gauss,
     )
-    state.history = [net_worth(state)]
+    state.history = [realizable_net(state)]
     return state
 
 
@@ -162,6 +188,11 @@ def to_save_dict(state: GameState) -> dict:
         "burnout_streak": state.burnout_streak,
         "offer_exit_pct": state.offer_exit_pct,
         "last_business_net": state.last_business_net,
+        "contract_left": state.contract_left,
+        "contract_term": state.contract_term,
+        "locked": state.locked,
+        "lock_left": state.lock_left,
+        "trial_months": state.trial_months,
         "history": list(state.history),
         "last_report": state.last_report,
     }
@@ -196,6 +227,11 @@ def from_save_dict(data: dict) -> GameState:
         burnout_streak=int(data["burnout_streak"]),
         offer_exit_pct=int(data["offer_exit_pct"]),
         last_business_net=int(data["last_business_net"]),
+        contract_left=int(data.get("contract_left", 0)),
+        contract_term=int(data.get("contract_term", 0)),
+        locked=int(data.get("locked", 0)),
+        lock_left=int(data.get("lock_left", 0)),
+        trial_months=int(data.get("trial_months", 0)),
         history=[int(x) for x in data["history"]],
         last_report=data.get("last_report"),
     )
@@ -238,6 +274,12 @@ def public_view(state: GameState) -> dict:
         "offer_exit_pct": state.offer_exit_pct,
         "last_business_net": state.last_business_net,
         "net_worth": net_worth(state),
+        "realizable": realizable_net(state),
+        "contract_left": state.contract_left,
+        "contract_term": state.contract_term,
+        "locked": state.locked,
+        "lock_left": state.lock_left,
+        "trial_months": state.trial_months,
         "goal": WIN_NET,
         "start_net": START_CASH + START_PORTFOLIO,
         "history": list(state.history),

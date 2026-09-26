@@ -15,7 +15,7 @@ from money_sim.engine import preview, resolve
 from money_sim.state import Plan, from_save_dict, new_game, public_view, to_save_dict
 
 WEB = Path(__file__).resolve().parent.parent / "web"
-STAGE_LABEL = {"none": "还没有副业", "building": "建造中", "running": "在经营"}
+STAGE_LABEL = {"none": "还没有副业", "building": "建造中", "trial": "试营业", "running": "在经营"}
 
 
 class Session:
@@ -79,6 +79,10 @@ def parse_plan(data: dict) -> Plan:
         automate=bool(data.get("automate", False)),
         exit_business=bool(data.get("exit_business", False)),
         accept_offer=bool(data.get("accept_offer", False)),
+        sign_months=num("sign_months"),
+        break_contract=bool(data.get("break_contract", False)),
+        lock_amount=num("lock_amount"),
+        unlock=bool(data.get("unlock", False)),
     )
 
 

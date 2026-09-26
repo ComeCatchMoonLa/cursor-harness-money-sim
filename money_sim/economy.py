@@ -12,6 +12,7 @@ from money_sim.constants import (
     PRICE_START,
     SALARY_BASE,
     SALARY_PER_SKILL,
+    TRIAL_EXIT_PCT,
 )
 
 
@@ -46,6 +47,8 @@ def exit_pct(stage: str, last_business_net: int, offer_pct: int, accept_offer: b
         return offer_pct
     if stage == "building":
         return 90
+    if stage == "trial":
+        return TRIAL_EXIT_PCT
     if stage == "running":
         return 62 if last_business_net > 0 else 48
     return 0

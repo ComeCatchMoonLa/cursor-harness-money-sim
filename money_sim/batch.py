@@ -9,7 +9,7 @@ from collections import Counter
 from money_sim.constants import MONTHS
 from money_sim.engine import resolve
 from money_sim.policies import POLICIES, ensure_plan
-from money_sim.state import Plan, new_game, net_worth
+from money_sim.state import Plan, net_worth, new_game, realizable_net
 
 
 def plan_signature(plan: Plan) -> tuple:
@@ -22,6 +22,10 @@ def plan_signature(plan: Plan) -> tuple:
         plan.risk_pct // 25,
         plan.automate,
         plan.exit_business or plan.accept_offer,
+        plan.sign_months,
+        plan.break_contract,
+        plan.lock_amount > 0,
+        plan.unlock,
     )
 
 
@@ -33,7 +37,7 @@ def play_once(policy, seed: int) -> dict:
     early_steps = 0
     late_steps = 0
     max_jump = 0.0
-    max_worth = net_worth(state)
+    max_worth = realizable_net(state)
     slot_counter: Counter[str] = Counter()
     while state.status == "playing":
         plan = ensure_plan(state, policy(state))
@@ -56,19 +60,21 @@ def play_once(policy, seed: int) -> dict:
         for slot in plan.slots:
             slot_counter[slot] += 1
         slot_counter[plan.employment] += 1
-        before = net_worth(state)
+        before_book = net_worth(state)
+        before = realizable_net(state)
         state, errors, _report = resolve(state, plan)
         if errors:
             raise RuntimeError(errors)
-        after = net_worth(state)
-        if before > 0:
-            max_jump = max(max_jump, (after - before) / before)
+        after_book = net_worth(state)
+        after = realizable_net(state)
+        if before_book > 0:
+            max_jump = max(max_jump, (after_book - before_book) / before_book)
         max_worth = max(max_worth, after)
         if month > MONTHS + 2:
             raise RuntimeError("月份没有停下")
     return {
         "status": state.status,
-        "net_worth": net_worth(state),
+        "net_worth": realizable_net(state),
         "month": state.month,
         "max_jump": max_jump,
         "max_worth": max_worth,
