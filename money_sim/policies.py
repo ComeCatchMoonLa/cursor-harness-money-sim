@@ -19,7 +19,7 @@ from money_sim.economy import (
     rent_of,
     salary,
 )
-from money_sim.engine import quote, validate
+from money_sim.engine import ease_of, quote, validate
 from money_sim.state import GameState, Plan
 
 
@@ -383,10 +383,62 @@ def policy_nest(state: GameState) -> Plan:
     return base
 
 
+def policy_ease(state: GameState) -> Plan:
+    """最多按三分之一局的全职储蓄已经够碰 150 万时，可以改轻职。状态已经在掉、又不是景气月才换；健康或还差一截时继续全职。
+
+    到了这个位置就不再续签。合同把就业锁死，续签的话少工作永远排不上。
+    已经签着的合同不违约，违约要赔两个月工资，那一刀通常比少掉的工资更狠。
+    """
+    base = policy_steady(state)
+    position = ease_of(state)
+    if position["open"]:
+        base.sign_months = 0
+    if (
+        not position["open"]
+        or state.regime == "bull"
+        or state.offer_left > 0
+        or base.accept_job
+        or state.contract_left > 0
+    ):
+        return base
+    if state.condition < 40 or state.energy < 24 or (state.condition >= 58 and state.autonomy >= 64):
+        return base
+    slots: list[str] = []
+    refresh_at = 3 if state.month >= 48 else 1
+    career_stale = state.career_fresh <= refresh_at
+    for index in range(2):
+        if state.condition < 48 or state.energy < 36:
+            slots.append("rest")
+        elif (state.career < 58 or career_stale) and index == 0:
+            slots.append("learn_career")
+        elif state.regime == "bear":
+            slots.append("rest")
+        else:
+            slots.append("invest")
+    slots, consume_cash = _spend_on_consume(state, slots)
+    plan = Plan(
+        "light",
+        slots,
+        to_index=base.to_index,
+        from_index=base.from_index,
+        debt_pay=base.debt_pay,
+        risk_pct=base.risk_pct if "invest" in slots else 0,
+        lock_amount=base.lock_amount if base.from_index == 0 else 0,
+        consume_cash=consume_cash,
+    )
+    if validate(state, plan):
+        quoted = quote(state, plan)
+        short = max(0, -quoted["cash_after_choices"])
+        plan.to_index = max(0, plan.to_index - short)
+        plan.lock_amount = 0
+    return ensure_plan(state, plan)
+
+
 POLICIES = (
     ("steady", policy_steady),
     ("grind", policy_grind),
     ("yolo", policy_yolo),
     ("owner", policy_owner),
     ("nest", policy_nest),
+    ("ease", policy_ease),
 )

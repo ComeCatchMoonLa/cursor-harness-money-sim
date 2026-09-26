@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from money_sim.constants import LOG_FIELDS, REGIME_LABEL
 from money_sim.economy import exit_pct, living_cost, rent_of, salary
-from money_sim.engine import preview, resolve
+from money_sim.engine import ease_of, preview, resolve
 from money_sim.state import Plan, from_save_dict, new_game, public_view, to_save_dict
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -34,6 +34,12 @@ class Session:
         else:
             view["salary_full"] = salary(state.career, state.network, "full")
         view["salary_part"] = salary(state.career, state.network, "part")
+        view["salary_light"] = salary(state.career, state.network, "light")
+        position = ease_of(state)
+        view["ease_open"] = position["open"]
+        view["ease_projected"] = position["projected"]
+        view["ease_covered"] = position["covered"]
+        view["ease_months_left"] = position["months_left"]
         full_living = living_cost(state.lifestyle, state.price_index)
         view["living"] = full_living - rent_of(full_living) if state.home_value else full_living
         view["regime_label"] = REGIME_LABEL.get(state.regime, state.regime)

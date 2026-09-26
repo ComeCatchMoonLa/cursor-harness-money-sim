@@ -123,6 +123,7 @@ def play_once(policy, seed: int) -> dict:
         "low_condition_rate": low_condition / max(1, state.month - 1),
         "end_condition": state.condition,
         "free_rate": slot_counter["free"] / max(1, state.month - 1),
+        "light_rate": slot_counter["light"] / max(1, state.month - 1),
         "end_month": state.month - 1,
         "slots": slot_counter,
     }
@@ -168,6 +169,7 @@ def summarize(name: str, rows: list[dict]) -> dict:
         "mean_low_condition": statistics.fmean(row["low_condition_rate"] for row in rows),
         "mean_end_condition": statistics.fmean(row["end_condition"] for row in rows),
         "mean_free": statistics.fmean(row["free_rate"] for row in rows),
+        "mean_light": statistics.fmean(row["light_rate"] for row in rows),
         "late_games": len(late_rows),
         "median_end_month": statistics.median(end_months),
         "suspect_jump_games": sum(row["max_jump"] > 0.55 for row in rows),
@@ -201,7 +203,7 @@ def run_batch(games: int, seed: int, policies=POLICIES) -> dict:
 def format_report(report: dict) -> str:
     lines = [
         f"局数 {report['games']}  种子 {report['seed']}",
-        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  前期学习月占比  后期学习月占比  消费月占比  前期消费  后期消费  平均生活水准  峰值生活水准  终局生活水准  平均状态  低于40占比  终局状态  无工资占比  单月最大跳升  可疑暴富局",
+        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  前期学习月占比  后期学习月占比  消费月占比  前期消费  后期消费  平均生活水准  峰值生活水准  终局生活水准  平均状态  低于40占比  终局状态  无工资占比  轻职占比  单月最大跳升  可疑暴富局",
     ]
     for row in report["strategies"]:
         lines.append(
@@ -232,6 +234,7 @@ def format_report(report: dict) -> str:
                     f"{row['mean_low_condition']:.2f}",
                     f"{row['mean_end_condition']:.0f}",
                     f"{row['mean_free']:.2f}",
+                    f"{row['mean_light']:.2f}",
                     f"{row['max_jump']:.1%}",
                     str(row["suspect_wealth_games"]),
                 ]

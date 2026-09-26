@@ -8,7 +8,7 @@ const SLOT_OPTIONS = [
   ["consume", "消费"],
 ];
 
-const WORK_SLOTS = { full: 3, part: 2, free: 0 };
+const WORK_SLOTS = { full: 3, light: 2, part: 2, free: 0 };
 const STATUS_TEXT = {
   playing: "进行中",
   won: "胜利",
@@ -117,9 +117,18 @@ function renderStatus() {
   setText("#lock-label", state.lock_left ? `${wan(state.locked)} · 剩余 ${state.lock_left} 个月` : "没有封闭");
   setText("#stage", state.burnout_streak ? `连续透支 ${state.burnout_streak} 个月` : "透支记满 3 个月会过劳失败");
   const full = document.querySelector('#employment option[value="full"]');
+  const light = document.querySelector('#employment option[value="light"]');
   const part = document.querySelector('#employment option[value="part"]');
   full.textContent = `全职 · 工资 ${wan(state.salary_full)} · 占 3 个时间槽`;
+  light.textContent = state.ease_open
+    ? `轻职 · 工资 ${wan(state.salary_light)} · 占 2 个时间槽`
+    : `轻职 · 还没到可以少工作的位置`;
   part.textContent = `兼职 · 工资 ${wan(state.salary_part)} · 占 2 个时间槽`;
+  setText("#ease-label", state.ease_open
+    ? (state.ease_covered
+      ? `少工作可以选 · 按轻职储蓄大约到 ${wan(state.ease_projected)}`
+      : `少工作可以选 · 按轻职储蓄大约到 ${wan(state.ease_projected)}，还差一截`)
+    : "少工作还不行");
   const offer = document.querySelector("#offer");
   const lines = [];
   if (state.pending_offer) {
@@ -258,6 +267,8 @@ function showPreview(payload) {
     quote.home_maintenance ? `维修 ${wan(quote.home_maintenance)}` : "",
     quote.home_sale_net ? `卖房结算 ${wan(quote.home_sale_net)}` : "",
     quote.job_gap ? "这个月交接，没有工资" : "",
+    quote.employment === "light" ? "轻职，工资低于全职" : "",
+    quote.autonomy_next != null ? `行动后时间自主 ${quote.autonomy_next}` : "",
     quote.condition_next != null ? `行动后状态 ${quote.condition_next}` : "",
     quote.consume_slots ? `时间自主 +${quote.consume_autonomy}，下月租房生活费多 ${wan(quote.living_delta_rent)}，已购房多 ${wan(quote.living_delta_own)}` : "",
   ].filter(Boolean).join("，");

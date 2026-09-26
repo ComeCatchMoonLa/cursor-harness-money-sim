@@ -29,6 +29,9 @@ from money_sim.constants import (
     HOME_MAINT_DEN,
     HOME_MAINT_NUM,
     HOME_SELL_COST,
+    LIGHT_DEN,
+    LIGHT_NUM,
+    MONTHS,
     MORTGAGE_MONTHS,
     MORTGAGE_RATE_DEN,
     MORTGAGE_RATE_NUM,
@@ -43,6 +46,7 @@ from money_sim.constants import (
     SALARY_BASE,
     SALARY_PER_SKILL,
     TRIAL_EXIT_PCT,
+    WIN_NET,
 )
 
 
@@ -59,9 +63,34 @@ def salary(career: int, network: int, employment: str) -> int:
     full = full * (NETWORK_SALARY_DEN + network) // NETWORK_SALARY_DEN
     if employment == "full":
         return full
+    if employment == "light":
+        return full * LIGHT_NUM // LIGHT_DEN
     if employment == "part":
         return full * PART_TIME_NUM // PART_TIME_DEN
     return 0
+
+
+def ease_position(worth: int, month: int, career: int, network: int, bill: int) -> dict:
+    """少工作开不开，只承认最多三分之一局的全职储蓄。
+
+    把剩下上百个月的工资都算进去，开局涨一点技能就会“够到”。
+    那个位置不是攒出来的。更远的工资不计入。投影不含投资收益，也不发钱。
+    轻职若一直做到局终，投影可以低于 150 万：位置只表示现在换时间还有得选。
+    """
+    left = max(0, MONTHS - month + 1)
+    horizon = min(left, MONTHS // 3)
+    full_save = salary(career, network, "full") - bill
+    light_save = salary(career, network, "light") - bill
+    projected_full = worth + max(0, full_save) * horizon
+    projected = worth + max(0, light_save) * left
+    return {
+        "open": left >= 6 and light_save > 0 and projected_full >= WIN_NET,
+        "projected": projected,
+        "projected_full": projected_full,
+        "monthly_save": light_save,
+        "months_left": left,
+        "covered": projected >= WIN_NET,
+    }
 
 
 def living_cost(lifestyle: int, price_index: int) -> int:

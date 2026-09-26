@@ -79,6 +79,7 @@ from money_sim.economy import (
     contract_rest_gain,
     demand_bp,
     down_and_loan,
+    ease_position,
     exit_pct,
     home_maintenance,
     home_price,
@@ -118,6 +119,18 @@ def commitment(state: GameState, plan: Plan) -> dict:
         "leave": leave,
         "contracted_pay": bound and not leave,
     }
+
+
+def housing_bill(state: GameState) -> int:
+    full = living_cost(state.lifestyle, state.price_index)
+    bill = full - rent_of(full) if state.home_value else full
+    if state.home_value:
+        bill += state.mortgage_payment + home_maintenance(state.home_value)
+    return bill
+
+
+def ease_of(state: GameState) -> dict:
+    return ease_position(realizable_net(state), state.month, state.career, state.network, housing_bill(state))
 
 
 def quote(state: GameState, plan: Plan) -> dict:
@@ -203,6 +216,15 @@ def quote(state: GameState, plan: Plan) -> dict:
             gain = rest_gain
         energy_after += gain
     next_condition = condition_after(state.condition, employment, plan.slots)
+    autonomy_next = state.autonomy
+    if taking_offer:
+        autonomy_next = max(8, autonomy_next - JOB_OFFER_AUTONOMY)
+    autonomy_next += WORK_AUTONOMY[employment]
+    autonomy_next += 2 * sum(1 for slot in plan.slots if slot == "rest")
+    if consume_slots:
+        autonomy_next += CONSUME_AUTONOMY
+    autonomy_next = clamp(autonomy_next, 8, 96)
+    position = ease_of(state)
     return {
         "salary": pay,
         "bonus": bonus,
@@ -210,6 +232,8 @@ def quote(state: GameState, plan: Plan) -> dict:
         "leave": bound["leave"],
         "job_gap": taking_offer,
         "employment": employment,
+        "ease_open": position["open"],
+        "ease_projected": position["projected"],
         "operating": operating,
         "living": charged_living,
         "housing_living": charged_living,
@@ -231,6 +255,7 @@ def quote(state: GameState, plan: Plan) -> dict:
         "cash_after_choices": cash_after,
         "energy_after": energy_after,
         "condition_next": next_condition,
+        "autonomy_next": autonomy_next,
         "learn_slots": learn_slots,
         "consume_slots": consume_slots,
         "consume_autonomy": CONSUME_AUTONOMY if consume_slots else 0,
@@ -275,6 +300,10 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         errors.append("精力不足，无法全职")
     elif plan.employment == "full" and state.condition < CONDITION_LOW:
         errors.append("状态太差，无法全职")
+    if plan.employment == "light" and not bound["bound"] and not ease_of(state)["open"]:
+        errors.append("还没攒到可以少工作的位置")
+    if plan.employment == "light" and plan.sign_months:
+        errors.append("轻职这个月不能再签全职合同")
     need = TOTAL_SLOTS - WORK_SLOTS[plan.employment]
     if len(plan.slots) != need:
         errors.append(f"本月应安排 {need} 个自由时间槽")
@@ -385,6 +414,8 @@ def preview(state: GameState, plan: Plan) -> dict:
             warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
     if quoted["job_gap"]:
         warnings.append("接手外部报价的这个月没有工资，月供和生活费照付。这份报价本身不加技能，学习仍然算。")
+    if quoted["employment"] == "light":
+        warnings.append("轻职工资低于全职，时间自主会上去。景气好或者状态还够的时候，继续全职可能更合适。")
     if quoted["employment"] == "full" and quoted["condition_next"] < CONDITION_LOW:
         warnings.append("下月状态低于 40，不能再全职。合同还在就会停薪请假。")
     if quoted["consume_slots"]:
@@ -775,7 +806,7 @@ def _apply_event(state, rng, employment, salary_paid, gross, ledger, notes) -> s
     options: list[tuple[str, float]] = []
     if state.stress > 55:
         options.append(("medical", 0.08))
-    if employment in ("full", "part") and state.contract_left <= 0:
+    if employment in ("full", "light", "part") and state.contract_left <= 0:
         chance = 0.025
         if state.stress > 70:
             chance += 0.05
@@ -828,7 +859,7 @@ def _roll_job_offer(state: GameState, quoted: dict, rng, notes: list[str]) -> No
         if state.offer_left == 0:
             state.offer_pay = 0
             notes.append("外部报价到期，工资回到按技能算")
-    employed = quoted["employment"] in ("full", "part") and not quoted["leave"]
+    employed = quoted["employment"] in ("full", "light", "part") and not quoted["leave"]
     if state.offer_left == 0 and employed and state.status == "playing":
         chance = JOB_OFFER_P_FRESH if state.career_fresh >= JOB_OFFER_FRESH else JOB_OFFER_P_STALE
         if rng.random() < chance:
