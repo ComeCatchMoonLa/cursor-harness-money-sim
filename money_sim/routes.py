@@ -142,7 +142,7 @@ def policy_coast(state: GameState) -> Plan:
 
 
 def policy_dwell(state: GameState) -> Plan:
-    """轻职路线走到能买自住的月份，就按安家的首付去买。买不起就继续轻职路线。"""
+    """轻职路线走到能买自住的月份，就按安家的首付去买。这个月买不成就退回安家的方案。"""
     plan = policy_ease(state)
     home = policy_nest(state)
     if not home.buy_home:

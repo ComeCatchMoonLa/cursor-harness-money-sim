@@ -124,10 +124,14 @@ function renderStatus() {
     ? `轻职 · 工资 ${wan(state.salary_light)} · 占 2 个时间槽`
     : `轻职 · 还没到可以少工作的位置`;
   part.textContent = `兼职 · 工资 ${wan(state.salary_part)} · 占 2 个时间槽`;
+  const projected = `按轻职储蓄大约到 ${wan(state.ease_projected)}`;
+  const wageHeld = state.regime === "bull" || state.contract_left || state.offer_left || state.condition < 40 || state.energy < 24;
   setText("#ease-label", state.ease_open
     ? (state.ease_covered
-      ? `少工作可以选 · 按轻职储蓄大约到 ${wan(state.ease_projected)}，也可以不拿工资`
-      : `少工作可以选 · 按轻职储蓄大约到 ${wan(state.ease_projected)}，还差一截`)
+      ? (wageHeld
+        ? `少工作可以选 · ${projected}。这个月仍拿工资`
+        : `少工作可以选 · ${projected}，也可以不拿工资`)
+      : `少工作可以选 · ${projected}，还差一截`)
     : "少工作还不行");
   const offer = document.querySelector("#offer");
   const lines = [];
