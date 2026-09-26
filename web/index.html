@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>九年账</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <p class="eyebrow">月度时间与资产</p>
+      <h1>九年账</h1>
+    </div>
+    <div class="when">
+      <p id="month-label" data-testid="month-label">第 1 年 1 月</p>
+      <p id="regime" data-testid="regime">景气</p>
+    </div>
+  </header>
+
+  <section class="goal" aria-label="目标">
+    <div>
+      <p class="eyebrow">可兑现</p>
+      <p id="net-worth" data-testid="net-worth">—</p>
+      <p id="net-delta" data-testid="net-delta"></p>
+    </div>
+    <div class="goal-copy">
+      <p id="goal-text" data-testid="goal-text">目标是可兑现净资产达到 150 万。店和自住房都按现在卖掉能拿到的折扣算，不算市价。共 108 个月。</p>
+      <div class="bar" aria-hidden="true"><div id="goal-bar"></div></div>
+      <p id="status-banner" data-testid="status-banner">进行中</p>
+    </div>
+  </section>
+
+  <main class="layout">
+    <section class="panel" aria-label="家底">
+      <h2>家底</h2>
+      <dl class="stats">
+        <div><dt>账面</dt><dd id="book-worth" data-testid="book-worth">—</dd></div>
+        <div><dt>现金</dt><dd id="cash" data-testid="cash">—</dd></div>
+        <div><dt>指数</dt><dd id="portfolio">—</dd></div>
+        <div><dt>副业账面</dt><dd id="business">—</dd></div>
+        <div><dt>现在退出大约</dt><dd id="exit-value">—</dd></div>
+        <div><dt>负债</dt><dd id="debt">—</dd></div>
+        <div><dt>本月生活费</dt><dd id="living">—</dd></div>
+        <div><dt>住房</dt><dd id="housing" data-testid="housing">—</dd></div>
+      </dl>
+      <div class="meters">
+        <label>精力 <span id="energy" data-testid="energy">—</span>
+          <progress id="energy-bar" max="100" value="0"></progress>
+        </label>
+        <label>压力 <span id="stress">—</span>
+          <progress id="stress-bar" max="100" value="0"></progress>
+        </label>
+        <label>时间自主 <span id="autonomy">—</span>
+          <progress id="autonomy-bar" max="100" value="0"></progress>
+        </label>
+      </div>
+      <dl class="stats skills">
+        <div><dt>职业</dt><dd id="career">—</dd></div>
+        <div><dt>经营</dt><dd id="venture">—</dd></div>
+        <div><dt>投资</dt><dd id="invest">—</dd></div>
+        <div><dt>生活水准</dt><dd id="lifestyle">—</dd></div>
+        <div><dt>合同</dt><dd id="contract-label">—</dd></div>
+        <div><dt>封闭仓</dt><dd id="lock-label">—</dd></div>
+      </dl>
+      <p id="stage" class="note"></p>
+      <p id="offer" class="offer" hidden></p>
+    </section>
+
+    <section class="panel" id="decision-panel" data-testid="decision-panel" aria-label="本月决策">
+      <h2>本月</h2>
+      <p class="note">先选定就业、时间槽和资金，再结算。结算只执行你的方案，不是单独的致富按钮。</p>
+      <label class="field">任期
+        <select id="contract" data-testid="contract">
+          <option value="0">不签新合同</option>
+          <option value="6">签 6 个月全职</option>
+          <option value="12">签 12 个月全职</option>
+        </select>
+      </label>
+      <label class="field">就业
+        <select id="employment" data-testid="employment">
+          <option value="full">全职</option>
+          <option value="part">兼职</option>
+          <option value="free">不拿固定工资</option>
+        </select>
+      </label>
+      <div id="work-slots" class="chips" aria-label="被工作占用的时间"></div>
+      <div id="slots" class="slots"></div>
+      <div class="money-grid">
+        <label>买入指数（元）<input id="to-index" type="number" min="0" step="1000" value="0"></label>
+        <label>卖出指数（元）<input id="from-index" type="number" min="0" step="1000" value="0"></label>
+        <label>投入副业（元）<input id="to-business" type="number" min="0" step="1000" value="0"></label>
+        <label>还债（元）<input id="debt-pay" type="number" min="0" step="1000" value="0"></label>
+        <label>风险仓位 % <input id="risk" type="number" min="0" max="100" step="5" value="0"></label>
+        <label>消费金额（元）<input id="consume" type="number" min="0" step="500" value="0"></label>
+        <label>封闭指数（元）<input id="lock-amount" type="number" min="0" step="1000" value="0"></label>
+      </div>
+      <div class="checks">
+        <label><input id="break-contract" type="checkbox"> 违约，付两个月工资</label>
+        <label><input id="unlock" type="checkbox"> 提前解锁（扣 8%）</label>
+        <label><input id="automate" type="checkbox"> 雇人看店</label>
+        <label><input id="exit" type="checkbox"> 退出副业</label>
+        <label><input id="accept" type="checkbox"> 接受本月收购</label>
+        <label><input id="buy-home" type="checkbox"> 买房，付首付</label>
+        <label><input id="sell-home" type="checkbox"> 卖掉房子</label>
+        <label><input id="accept-job" type="checkbox"> 接受外部报价</label>
+      </div>
+      <div id="preview" data-testid="preview" class="preview">调整方案后这里会显示预计代价。</div>
+      <div class="actions">
+        <button id="btn-resolve" data-testid="btn-resolve" type="button">结算本月</button>
+        <button id="btn-new" type="button">新的一局</button>
+        <button id="btn-save" type="button">存档</button>
+        <button id="btn-load" type="button">读档</button>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <h2>九年</h2>
+      <svg id="chart" data-testid="chart" viewBox="0 0 280 110" role="img" aria-label="净资产曲线"></svg>
+      <h2>最近</h2>
+      <ol id="log" data-testid="log"></ol>
+      <h2>规则</h2>
+      <ul class="rules">
+        <li>工作占时间并给工资。精力低于 14 不能全职。</li>
+        <li>学习花钱、花精力，下个月才体现在技能上。</li>
+        <li>副业是店，不是第二份工资。不照看会萎缩，雇人有固定成本，退出要打折。</li>
+        <li>投资槽用来把一部分指数放进高波动仓。不选的话，下个月回到指数。</li>
+        <li>休息回精力。消费降压力，但会把生活费慢慢抬高。</li>
+        <li>现金不够会被迫卖资产、借高息债。连续三个月精力透支则过劳失败。</li>
+        <li>任期锁住全职，在职期间不被裁。违约要赔，精力不够就停薪请假。</li>
+        <li>合同月的休息回血变少。时间自主越高，这点休息越有用；长期全职会把时间自主磨掉。</li>
+        <li>技能会过时。不学、也不做对口的事，新鲜月数耗尽后技能就往下掉。越往后，学一次能保住的时间越短。</li>
+        <li>封闭的指数十二个月内不能卖，也不能拿来救急。提前解锁扣 8%。</li>
+        <li>新店先试营业。试营业不能雇人，退出折扣更差。胜利只看折现后的可兑现。</li>
+        <li>收缩期里，指数、店和身体可能在同一个月一起挨打。合同挡得住裁员，挡不住这次冲击。</li>
+        <li>可以买一套自住房。房租会跟着物价涨，月供不会。刚买下可兑现会先掉一截，现金不够时房子会被折价卖掉还贷。</li>
+        <li>外部报价只是十二个月的全职工资。接手的那个月没有工资。报价本身不加技能，当月学习仍然算。合同还在就要先违约。</li>
+      </ul>
+    </aside>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+"""纯公式。结算和预览都走这里，避免界面另算一套数。"""
+
+from __future__ import annotations
+
+import math
+
+from money_sim.constants import (
+    AUTONOMY_REST_HIGH,
+    AUTONOMY_REST_LOW,
+    AUTONOMY_RUST_RELIEF,
+    BASE_LIVING,
+    CONTRACT_REST_HIGH,
+    CONTRACT_REST_LOW,
+    CONTRACT_REST_MID,
+    HOME_BASIS,
+    JOB_OFFER_BUMP,
+    JOB_OFFER_BUMP_CAP,
+    JOB_OFFER_BUMP_FLOOR,
+    JOB_OFFER_FRESH,
+    HOME_DOWN_DEN,
+    HOME_DOWN_NUM,
+    HOME_MAINT_DEN,
+    HOME_MAINT_NUM,
+    HOME_SELL_COST,
+    MORTGAGE_MONTHS,
+    MORTGAGE_RATE_DEN,
+    MORTGAGE_RATE_NUM,
+    NETWORK_SALARY_DEN,
+    PART_TIME_DEN,
+    PART_TIME_NUM,
+    PRICE_START,
+    RENT_SHARE,
+    RUST_LATE_MONTH,
+    SALARY_BASE,
+    SALARY_PER_SKILL,
+    TRIAL_EXIT_PCT,
+)
+
+
+def clamp(value: int, low: int, high: int) -> int:
+    return max(low, min(high, value))
+
+
+def clamp_return(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def salary(career: int, network: int, employment: str) -> int:
+    full = SALARY_BASE + career * SALARY_PER_SKILL
+    full = full * (NETWORK_SALARY_DEN + network) // NETWORK_SALARY_DEN
+    if employment == "full":
+        return full
+    if employment == "part":
+        return full * PART_TIME_NUM // PART_TIME_DEN
+    return 0
+
+
+def living_cost(lifestyle: int, price_index: int) -> int:
+    return BASE_LIVING * lifestyle // 100 * price_index // PRICE_START
+
+
+def learn_gain(skill: int) -> int:
+    return max(1, int(round(8 * (1 - skill / 140))))
+
+
+def exit_pct(stage: str, last_business_net: int, offer_pct: int, accept_offer: bool) -> int:
+    if accept_offer and offer_pct > 0:
+        return offer_pct
+    if stage == "building":
+        return 90
+    if stage == "trial":
+        return TRIAL_EXIT_PCT
+    if stage == "running":
+        return 62 if last_business_net > 0 else 48
+    return 0
+
+
+def _capital_factor(book: int) -> float:
+    """资金会把店撑起来，但很快饱和。再往后只有成本在涨。"""
+    if book <= 0:
+        return 0.0
+    return 1.35 * (1 - math.exp(-book / 36_000))
+
+
+def business_gross(
+    book: int,
+    venture: int,
+    demand_bp: int,
+    attention: int,
+    automated: bool,
+    autonomy: int,
+) -> int:
+    """亲自经营才有完整收入。没人照看会塌；雇人能保住大部分，但不是第二份工资。"""
+    if book <= 0:
+        return 0
+    skill_f = 0.42 + venture * 0.008
+    gross = int(12_500 * skill_f * _capital_factor(book) * (demand_bp / 100))
+    # 一个时间槽只能维持，两个槽才是在做这家店。更多槽有用，但不再线性加钱。
+    if attention <= 0 and not automated:
+        gross = gross * 8 // 100
+    elif attention <= 0 and automated:
+        gross = gross * 82 // 100
+    elif attention == 1:
+        gross = gross * 48 // 100
+    elif attention >= 4:
+        gross = gross * 138 // 100
+    elif attention == 3:
+        gross = gross * 122 // 100
+    if autonomy >= 65 and attention > 0:
+        gross = gross * 106 // 100
+    return gross
+
+
+def business_opex(book: int, automated: bool) -> int:
+    staff = 4_500 if automated else 0
+    return 1_000 + book // 2_000 + staff
+
+
+def demand_bp(regime: str, network: int, noise_bp: int) -> int:
+    base = {"bull": 112, "chop": 100, "bear": 78}[regime]
+    return base * (500 + network) // 500 * noise_bp // 100
+
+
+def index_distribution(skill: int, regime: str) -> tuple[float, float, float, float]:
+    mu = 0.004 + skill * 0.000012
+    sigma = max(0.028, 0.042 - skill * 0.00006)
+    if regime == "bull":
+        mu += 0.003
+    elif regime == "bear":
+        mu -= 0.007
+    return mu, sigma, -0.28, 0.22
+
+
+def risk_distribution(skill: int, regime: str) -> tuple[float, float, float, float]:
+    mu = 0.006 + skill * 0.00002
+    sigma = 0.08
+    if regime == "bull":
+        mu += 0.004
+    elif regime == "bear":
+        mu -= 0.012
+    return mu, sigma, -0.45, 0.40
+
+
+def consume_lifestyle_gain(spend: int) -> int:
+    return min(4, max(1, spend // 10_000))
+
+
+def consume_stress_relief(spend: int) -> int:
+    return min(22, spend // 1_500)
+
+
+def consume_network_gain(spend: int) -> int:
+    return min(8, max(1, spend // 3_000))
+
+
+def contract_rest_gain(autonomy: int) -> int:
+    """合同月不能真正下班。时间自主越高，这点休息才越有用。"""
+    if autonomy >= AUTONOMY_REST_HIGH:
+        return CONTRACT_REST_HIGH
+    if autonomy <= AUTONOMY_REST_LOW:
+        return CONTRACT_REST_LOW
+    return CONTRACT_REST_MID
+
+
+def rust_step(month: int, autonomy: int) -> int:
+    """新鲜耗尽之后每月掉几点。后期更快，除非你还留着时间自主。"""
+    if month < RUST_LATE_MONTH or autonomy >= AUTONOMY_RUST_RELIEF:
+        return 1
+    return 2
+
+
+def home_price(price_index: int) -> int:
+    return HOME_BASIS * price_index // PRICE_START
+
+
+def down_and_loan(price: int) -> tuple[int, int]:
+    down = price * HOME_DOWN_NUM // HOME_DOWN_DEN
+    return down, price - down
+
+
+def mortgage_payment(principal: int) -> int:
+    """等额本息。月供在买入时定死，不跟着后来的房价走。"""
+    if principal <= 0:
+        return 0
+    scale = 1_000_000
+    growth = scale
+    for _ in range(MORTGAGE_MONTHS):
+        growth = growth * (MORTGAGE_RATE_DEN + MORTGAGE_RATE_NUM) // MORTGAGE_RATE_DEN
+    denom = MORTGAGE_RATE_DEN * (growth - scale)
+    return (principal * MORTGAGE_RATE_NUM * growth + denom - 1) // denom
+
+
+def rent_of(living: int) -> int:
+    return living * RENT_SHARE // 100
+
+
+def home_maintenance(value: int) -> int:
+    return value * HOME_MAINT_NUM // HOME_MAINT_DEN if value > 0 else 0
+
+
+def home_proceeds(value: int, keep_pct: int) -> int:
+    return value * keep_pct // 100 if value > 0 else 0
+
+
+def outside_offer(career: int, network: int, fresh: int) -> int:
+    """外部全职报价。新鲜度决定加减，不再另掷一个金额。"""
+    base = salary(career, network, "full")
+    bump = (fresh - JOB_OFFER_FRESH) * JOB_OFFER_BUMP
+    bump = max(JOB_OFFER_BUMP_FLOOR, min(JOB_OFFER_BUMP_CAP, bump))
+    return max(1, base * (1000 + bump) // 1000)
+
+
+def home_equity(value: int, mortgage: int) -> int:
+    """主动卖掉、扣掉交易成本、还清贷款之后能拿走的数。可以是负的。"""
+    if value <= 0:
+        return -mortgage
+    return home_proceeds(value, 100 - HOME_SELL_COST) - mortgage

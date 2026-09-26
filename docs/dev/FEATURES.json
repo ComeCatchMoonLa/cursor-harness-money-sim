@@ -1,3 +1,7 @@
+
+**docs/dev/FEATURES.json**
+
+```json
 [
   {
     "id": "play-smoke",
@@ -10,7 +14,7 @@
       "推进一期",
       "看到资产数字相对行动前发生变化，且该数字来自引擎状态"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "play-nine-years",
@@ -22,7 +26,7 @@
       "中途能在不同行动之间做选择，且至少两类行动的代价不同",
       "终局能区分胜利、失败或未达成，而不是时间走完就没有结果"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "play-core-actions",
@@ -34,7 +38,7 @@
       "确认没有按钮写着占位或暂未实现",
       "执行后状态会变，而不是点了没效果"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "play-win",
@@ -45,7 +49,7 @@
       "用手玩或模拟打出至少一局胜利",
       "确认胜利不是只靠重复按同一个按钮"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "play-fail",
@@ -56,7 +60,7 @@
       "在界面或模拟中打出至少一局失败",
       "确认失败后不能当没发生，继续无代价刷钱"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "play-ui-matches-engine",
@@ -67,7 +71,7 @@
       "用引擎状态或结构化日志读出对应数字",
       "确认两者一致；不一致则记入 BUGS，且本条保持 passes 为 false"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "play-opportunity-cost",
@@ -78,7 +82,7 @@
       "确认该行动被拒绝，或付出可见代价",
       "确认不存在零成本、零约束、只增加资产的行动"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "observe-startup",
@@ -89,7 +93,7 @@
       "只按该命令就能打开可玩路径",
       "不依赖口头补充才能启动"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "observe-logs",
@@ -100,7 +104,7 @@
       "在日志里看到固定字段，而不是只在界面上闪一下",
       "用日志能还原该期资产变化的原因，且数字与引擎一致"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "feedback-core-tests",
@@ -111,7 +115,7 @@
       "跑全量现有测试并且通过",
       "确认没有为了变绿而删除或改弱已有断言"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "feedback-batch-sim",
@@ -123,7 +127,7 @@
       "输出目标达成率、破产或硬失败率、各策略平均终局净资产，并检查有没有单一策略碾压",
       "单次至少 100 局；做不到则先优化模拟，并把瓶颈写进 PROGRESS，不能因此把本条改成更容易的 steps"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "feedback-no-print",
@@ -134,7 +138,7 @@
       "若发现印钞或通胀式失控，先改规则再复跑",
       "把复跑结果写入 PROGRESS 后，才允许把本条 passes 改为 true"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "feedback-late-game",
@@ -145,7 +149,7 @@
       "确认不是前 24 步在决策、后面无脑重复",
       "若后半程策略崩塌，改规则并复跑，把闭环写入 PROGRESS"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "v3-systems-interlock",
@@ -156,7 +160,7 @@
       "用手玩确认它们互相影响，而不是几套互不相关的按钮",
       "确认这不是只写在文案里"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "v3-stage-strategy",
@@ -167,6 +171,6 @@
       "确认较优策略会变，并且失败可能发生",
       "确认终局不是三个按钮轮流点出来的"
     ],
-    "passes": false
+    "passes": true
   }
 ]

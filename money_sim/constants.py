@@ -1,0 +1,153 @@
+"""V1 经济常数。改动规则或这些数之后，要重跑批量模拟。"""
+
+MONTHS = 108
+START_CASH = 180_000
+START_PORTFOLIO = 540_000
+WIN_NET = 1_500_000
+
+BASE_LIVING = 13_200
+PRICE_START = 1_000
+PRICE_GROWTH_NUM = 10_025
+PRICE_GROWTH_DEN = 10_000
+
+START_ENERGY = 76
+START_STRESS = 22
+START_AUTONOMY = 42
+START_CAREER = 24
+START_VENTURE = 6
+START_INVEST = 10
+START_LIFESTYLE = 100
+START_NETWORK = 4
+
+SALARY_BASE = 11_500
+SALARY_PER_SKILL = 210
+PART_TIME_NUM = 74
+PART_TIME_DEN = 100
+NETWORK_SALARY_DEN = 500
+
+WORK_ENERGY = {"full": -22, "part": -12, "free": 0}
+WORK_STRESS = {"full": 7, "part": 4, "free": -2}
+WORK_AUTONOMY = {"full": -3, "part": 1, "free": 4}
+WORK_SLOTS = {"full": 3, "part": 2, "free": 0}
+LOW_ENERGY_FULL = 14
+TOTAL_SLOTS = 4
+
+SLOT_ENERGY = {
+    "learn_career": -13,
+    "learn_venture": -13,
+    "learn_invest": -11,
+    "venture": -15,
+    "invest": -9,
+    "rest": 26,
+    "consume": 4,
+}
+SLOT_STRESS = {
+    "learn_career": 3,
+    "learn_venture": 3,
+    "learn_invest": 2,
+    "venture": 5,
+    "invest": 2,
+    "rest": -14,
+    "consume": 0,
+}
+LEGAL_SLOTS = frozenset(SLOT_ENERGY)
+REGEN = 7
+STRESS_BLOCK_REGEN = 80
+
+TUITION = 1_000
+BUILD_COST = 7_000
+BUILDS_TO_LAUNCH = 3
+MIN_CONSUME = 2_000
+
+DEBT_CAP = 160_000
+DEBT_RATE_NUM = 12
+DEBT_RATE_DEN = 1_000
+
+INDEX_SELL_FEE_NUM = 3
+INDEX_SELL_FEE_DEN = 1_000
+EMERGENCY_FEE_NUM = 2
+EMERGENCY_FEE_DEN = 100
+DISTRESS_EXIT_NUM = 30
+DISTRESS_EXIT_DEN = 100
+
+BURNOUT_LIMIT = 3
+REGIME_SWITCH_P = 0.18
+OFFER_P = 0.10
+
+CONTRACT_TERMS = (6, 12)
+BREACH_MONTHS = 2
+BREACH_STRESS = 12
+LEAVE_STRESS = 8
+LOCK_TERM = 12
+UNLOCK_HAIRCUT_NUM = 8
+UNLOCK_HAIRCUT_DEN = 100
+LOCK_MU_BONUS = 0.002
+TRIAL_MONTHS = 4
+TRIAL_DEMAND_NUM = 70
+TRIAL_EXIT_PCT = 40
+
+START_CAREER_FRESH = 18
+START_VENTURE_FRESH = 8
+START_INVEST_FRESH = 12
+FRESH_LEARN_EARLY = 14
+FRESH_LEARN_LATE = 7
+FRESH_PRACTICE = 8
+LATE_FRESH_MONTH = 48
+RUST_LATE_MONTH = 60
+AUTONOMY_RUST_RELIEF = 65
+AUTONOMY_REST_HIGH = 70
+AUTONOMY_REST_LOW = 30
+CONTRACT_REST_HIGH = 18
+CONTRACT_REST_MID = 10
+CONTRACT_REST_LOW = 6
+SHOCK_P = 0.18
+SHOCK_INDEX_PCT = 3
+SHOCK_BOOK_PCT = 5
+SHOCK_MEDICAL = 8_000
+SHOCK_MEDICAL_STRESS = 50
+
+HOME_BASIS = 900_000
+HOME_DOWN_NUM = 35
+HOME_DOWN_DEN = 100
+MORTGAGE_MONTHS = 240
+MORTGAGE_RATE_NUM = 4
+MORTGAGE_RATE_DEN = 1_000
+RENT_SHARE = 32
+HOME_SELL_COST = 12
+HOME_DISTRESS_KEEP = 78
+HOME_MAINT_NUM = 10
+HOME_MAINT_DEN = 10_000
+HOME_DRIFT = {"bull": 3, "chop": 1, "bear": -4}
+
+JOB_OFFER_MONTHS = 12
+JOB_OFFER_P_FRESH = 0.12
+JOB_OFFER_P_STALE = 0.05
+JOB_OFFER_FRESH = 8
+JOB_OFFER_AUTONOMY = 8
+JOB_OFFER_BUMP = 30
+JOB_OFFER_BUMP_CAP = 180
+JOB_OFFER_BUMP_FLOOR = -150
+
+REGIME_LABEL = {"bull": "景气", "chop": "平淡", "bear": "收缩"}
+
+LOG_FIELDS = (
+    "type",
+    "month",
+    "status",
+    "cash",
+    "portfolio",
+    "business_book",
+    "debt",
+    "net_worth",
+    "energy",
+    "salary",
+    "living",
+    "business_net",
+    "invest_return",
+    "event",
+    "fail_reason",
+    "realizable",
+    "shock",
+    "home_value",
+    "mortgage",
+)
