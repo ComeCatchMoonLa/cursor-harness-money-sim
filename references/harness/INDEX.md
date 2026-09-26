@@ -6,6 +6,6 @@
 | --- | --- | --- |
 | [OpenAI-Harness-Engineering.md](./OpenAI-Harness-Engineering.md) | 人定环境/反馈，Agent 写代码 | harness = 环境 + 约束 + 工具 + 可验证反馈 |
 | [Anthropic-Long-Running-Agents.md](./Anthropic-Long-Running-Agents.md) | 长程 Agent：进度文件、增量推进、少打断人类 | 用 PROGRESS.md 留干净可续状态 |
-| [Cursor-Agent-Harness.md](./Cursor-Agent-Harness.md) | 本实验 10 条规则备忘 | 只在本仓、可 push 功能分支、反馈优先、反 Goodhart |
+| [Cursor-Agent-Harness.md](./Cursor-Agent-Harness.md) | 本实验 10 条规则备忘 | 只在本仓、可 push 功能分支、三版须有版本命题、反 Goodhart |
 
 外部链接汇总见上一级 [`../LINKS.md`](../LINKS.md)。
