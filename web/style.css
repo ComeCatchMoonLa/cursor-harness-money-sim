@@ -1,0 +1,141 @@
+:root {
+  color: #1c1915;
+  background: #f3efe6;
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", "Songti SC", "Noto Serif SC", serif;
+  line-height: 1.45;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0 auto;
+  max-width: 1120px;
+  padding: 24px 20px 48px;
+}
+
+h1, h2, p { margin: 0; }
+
+h1 { font-size: 2rem; font-weight: 650; letter-spacing: 0.04em; }
+
+h2 { font-size: 1.05rem; margin-bottom: 10px; }
+
+.eyebrow {
+  color: #6d6458;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+}
+
+.top, .goal, .layout, .stats, .money-grid, .actions, .checks {
+  display: flex;
+  gap: 16px;
+}
+
+.top, .goal { justify-content: space-between; align-items: end; }
+
+.goal, .panel {
+  background: #fffaf3;
+  border: 1px solid #ddd4c6;
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.goal { margin: 18px 0; align-items: stretch; }
+
+#net-worth {
+  font-size: 2.4rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.goal-copy { flex: 1; max-width: 640px; }
+
+.bar {
+  height: 10px;
+  margin: 10px 0;
+  background: #e7dfd2;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+#goal-bar {
+  height: 100%;
+  width: 0;
+  background: #0f6b4c;
+}
+
+#status-banner { color: #0f6b4c; font-weight: 650; }
+
+#status-banner.bad { color: #8c2f2f; }
+
+.layout {
+  align-items: start;
+}
+
+.panel { flex: 1; min-width: 0; }
+
+.panel:first-child { flex: 0.9; }
+.panel:nth-child(2) { flex: 1.15; }
+
+.stats { flex-wrap: wrap; margin: 0 0 12px; }
+.stats div { min-width: 120px; }
+.stats dt { color: #6d6458; font-size: 0.82rem; }
+.stats dd { margin: 0; font-variant-numeric: tabular-nums; font-size: 1.15rem; }
+
+.meters { display: grid; gap: 8px; margin-bottom: 12px; }
+.meters label { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
+progress { width: 100%; height: 12px; accent-color: #0f6b4c; }
+
+.note, .rules, .preview { color: #3f3830; font-size: 0.92rem; }
+.note { margin: 8px 0; }
+
+.field, .money-grid label, .slots label { display: grid; gap: 4px; font-size: 0.9rem; }
+
+select, input, button {
+  font: inherit;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #cfc4b2;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.slots, .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.chip {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #efe7da;
+  border: 1px dashed #c1b6a4;
+}
+
+.money-grid, .checks, .actions { flex-wrap: wrap; }
+.money-grid label { width: 160px; }
+.money-grid input { width: 100%; }
+
+button { cursor: pointer; background: #1c1915; color: #f6f1e8; }
+button.secondary, #btn-new, #btn-save, #btn-load { background: #fffaf3; color: #1c1915; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.preview {
+  min-height: 4.5rem;
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: #f7f1e7;
+  border-radius: 8px;
+}
+
+.offer {
+  padding: 8px 10px;
+  background: #f3e2c2;
+  border-radius: 8px;
+}
+
+#log { margin: 0; padding-left: 1.1rem; display: grid; gap: 8px; }
+#log li { font-size: 0.88rem; }
+
+#chart { width: 100%; height: 120px; background: #f7f1e7; border-radius: 8px; margin-bottom: 12px; }
+.rules { margin: 0; padding-left: 1.1rem; }
+
+@media (max-width: 860px) {
+  .top, .goal, .layout { flex-direction: column; align-items: stretch; }
+  .panel { width: 100%; }
+}
