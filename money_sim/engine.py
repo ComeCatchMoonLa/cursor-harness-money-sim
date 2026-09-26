@@ -8,6 +8,7 @@ from money_sim.constants import (
     BUILD_COST,
     BUILDS_TO_LAUNCH,
     BURNOUT_LIMIT,
+    CONSUME_AUTONOMY,
     CONTRACT_TERMS,
     DEBT_CAP,
     DEBT_RATE_DEN,
@@ -71,6 +72,7 @@ from money_sim.economy import (
     clamp_return,
     consume_lifestyle_gain,
     consume_network_gain,
+    consume_outlook,
     consume_stress_relief,
     contract_rest_gain,
     demand_bp,
@@ -114,13 +116,6 @@ def commitment(state: GameState, plan: Plan) -> dict:
         "leave": leave,
         "contracted_pay": bound and not leave,
     }
-
-
-def _housing_living(state: GameState, will_own: bool) -> int:
-    full = living_cost(state.lifestyle, state.price_index)
-    if will_own:
-        return full - rent_of(full)
-    return full
 
 
 def quote(state: GameState, plan: Plan) -> dict:
@@ -186,6 +181,9 @@ def quote(state: GameState, plan: Plan) -> dict:
     will_own = (state.home_value > 0 and not selling_home) or buying
     home_pay = mortgage_payment(loan) if buying else (state.mortgage_payment if will_own else 0)
     maint = home_maintenance(price if buying else state.home_value) if will_own else 0
+    outlook = consume_outlook(state.lifestyle, state.price_index, plan.consume_cash, consume_slots > 0)
+    charged_full = living_cost(outlook["charged_lifestyle"], state.price_index)
+    charged_living = charged_full - rent_of(charged_full) if will_own else charged_full
     sale_net = 0
     if selling_home:
         sale_net = home_proceeds(state.home_value, 100 - HOME_SELL_COST) - state.mortgage
@@ -210,8 +208,8 @@ def quote(state: GameState, plan: Plan) -> dict:
         "job_gap": taking_offer,
         "employment": employment,
         "operating": operating,
-        "living": _housing_living(state, will_own),
-        "housing_living": _housing_living(state, will_own),
+        "living": charged_living,
+        "housing_living": charged_living,
         "down_payment": down if buying else 0,
         "mortgage_payment": home_pay if will_own and not selling_home else 0,
         "home_maintenance": maint,
@@ -231,6 +229,11 @@ def quote(state: GameState, plan: Plan) -> dict:
         "energy_after": energy_after,
         "learn_slots": learn_slots,
         "consume_slots": consume_slots,
+        "consume_autonomy": CONSUME_AUTONOMY if consume_slots else 0,
+        "lifestyle_next": outlook["lifestyle_next"],
+        "living_delta_rent": outlook["living_delta_rent"] if consume_slots else 0,
+        "living_delta_own": outlook["living_delta_own"] if consume_slots else 0,
+        "rent_delta": outlook["rent_delta"] if consume_slots else 0,
         "exiting": exiting,
         "contract_rest": rest_gain,
         "rust_step": rust_step(state.month, state.autonomy),
@@ -371,6 +374,11 @@ def preview(state: GameState, plan: Plan) -> dict:
             warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
     if quoted["job_gap"]:
         warnings.append("接手外部报价的这个月没有工资，月供和生活费照付。这份报价本身不加技能，学习仍然算。")
+    if quoted["consume_slots"]:
+        warnings.append(
+            f"消费让时间自主 +{quoted['consume_autonomy']}，多花的钱不会再加。"
+            f"下月租房生活费多 {quoted['living_delta_rent']}，已购房多 {quoted['living_delta_own']}。"
+        )
     if plan.buy_home and not errors:
         warnings.append("买下之后可兑现会先掉一截，月供停不下来，房子也不能当月按市价拿回来。")
     if state.regime == "bear" and (plan.buy_home or state.home_value > 0):
@@ -500,6 +508,8 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
             if start_autonomy < 28:
                 gain = max(1, gain - 2)
             setattr(s, attr, min(100, current + gain))
+    if "consume" in plan.slots:
+        s.autonomy += CONSUME_AUTONOMY
     if plan.consume_cash:
         s.stress -= consume_stress_relief(plan.consume_cash)
         s.lifestyle += consume_lifestyle_gain(plan.consume_cash)

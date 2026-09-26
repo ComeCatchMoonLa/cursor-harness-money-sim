@@ -255,6 +255,7 @@ function showPreview(payload) {
     quote.home_maintenance ? `维修 ${wan(quote.home_maintenance)}` : "",
     quote.home_sale_net ? `卖房结算 ${wan(quote.home_sale_net)}` : "",
     quote.job_gap ? "这个月交接，没有工资" : "",
+    quote.consume_slots ? `时间自主 +${quote.consume_autonomy}，下月租房生活费多 ${wan(quote.living_delta_rent)}，已购房多 ${wan(quote.living_delta_own)}` : "",
   ].filter(Boolean).join("，");
   box.textContent = `预计工资 ${wan(quote.salary)}，学费 ${wan(quote.tuition)}，建设 ${wan(quote.build_cost)}，生活费 ${wan(quote.living)}，行动后精力 ${quote.energy_after}。${extra ? extra + "。" : ""}${warnings}`;
 }

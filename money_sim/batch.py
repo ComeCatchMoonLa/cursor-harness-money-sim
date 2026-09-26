@@ -29,6 +29,7 @@ def plan_signature(plan: Plan) -> tuple:
         plan.buy_home,
         plan.sell_home,
         plan.accept_job,
+        plan.consume_cash // 2_000,
     )
 
 
@@ -46,17 +47,28 @@ def play_once(policy, seed: int) -> dict:
     late_learn = 0
     early_learn_steps = 0
     late_learn_steps = 0
+    consume_months = 0
+    early_consume = 0
+    late_consume = 0
+    lifestyle_sum = 0
+    lifestyle_peak = state.lifestyle
     while state.status == "playing":
         plan = ensure_plan(state, policy(state))
         signature = plan_signature(plan)
         month = state.month
         learning = any(slot.startswith("learn_") for slot in plan.slots)
+        consuming = "consume" in plan.slots
         if month <= 36:
             early_learn_steps += 1
             early_learn += int(learning)
+            early_consume += int(consuming)
         if month >= 60:
             late_learn_steps += 1
             late_learn += int(learning)
+            late_consume += int(consuming)
+        consume_months += int(consuming)
+        lifestyle_sum += state.lifestyle
+        lifestyle_peak = max(lifestyle_peak, state.lifestyle)
         if previous is not None:
             changed = signature != previous
             if month <= 24:
@@ -97,6 +109,12 @@ def play_once(policy, seed: int) -> dict:
         "reached_late": late_steps > 0,
         "early_learn_rate": early_learn / early_learn_steps if early_learn_steps else 0.0,
         "late_learn_rate": late_learn / late_learn_steps if late_learn_steps else 0.0,
+        "consume_rate": consume_months / max(1, state.month - 1),
+        "early_consume_rate": early_consume / early_learn_steps if early_learn_steps else 0.0,
+        "late_consume_rate": late_consume / late_learn_steps if late_learn_steps else 0.0,
+        "end_lifestyle": state.lifestyle,
+        "mean_lifestyle": lifestyle_sum / max(1, state.month - 1),
+        "peak_lifestyle": lifestyle_peak,
         "end_month": state.month - 1,
         "slots": slot_counter,
     }
@@ -132,6 +150,12 @@ def summarize(name: str, rows: list[dict]) -> dict:
         "mean_late_change": statistics.fmean(late_rates) if late_rates else 0.0,
         "mean_early_learn": statistics.fmean(early_learn_rates) if early_learn_rates else 0.0,
         "mean_late_learn": statistics.fmean(late_learn_rows) if late_learn_rows else 0.0,
+        "mean_consume": statistics.fmean(row["consume_rate"] for row in rows),
+        "mean_early_consume": statistics.fmean(row["early_consume_rate"] for row in rows),
+        "mean_late_consume": statistics.fmean(row["late_consume_rate"] for row in rows),
+        "mean_end_lifestyle": statistics.fmean(row["end_lifestyle"] for row in rows),
+        "mean_lifestyle": statistics.fmean(row["mean_lifestyle"] for row in rows),
+        "mean_peak_lifestyle": statistics.fmean(row["peak_lifestyle"] for row in rows),
         "late_games": len(late_rows),
         "median_end_month": statistics.median(end_months),
         "suspect_jump_games": sum(row["max_jump"] > 0.55 for row in rows),
@@ -165,7 +189,7 @@ def run_batch(games: int, seed: int, policies=POLICIES) -> dict:
 def format_report(report: dict) -> str:
     lines = [
         f"局数 {report['games']}  种子 {report['seed']}",
-        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  前期学习月占比  后期学习月占比  单月最大跳升  可疑暴富局",
+        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  前期学习月占比  后期学习月占比  消费月占比  前期消费  后期消费  平均生活水准  峰值生活水准  终局生活水准  单月最大跳升  可疑暴富局",
     ]
     for row in report["strategies"]:
         lines.append(
@@ -186,6 +210,12 @@ def format_report(report: dict) -> str:
                     f"{row['mean_late_change']:.2f}",
                     f"{row['mean_early_learn']:.2f}",
                     f"{row['mean_late_learn']:.2f}",
+                    f"{row['mean_consume']:.2f}",
+                    f"{row['mean_early_consume']:.2f}",
+                    f"{row['mean_late_consume']:.2f}",
+                    f"{row['mean_lifestyle']:.0f}",
+                    f"{row['mean_peak_lifestyle']:.0f}",
+                    f"{row['mean_end_lifestyle']:.0f}",
                     f"{row['max_jump']:.1%}",
                     str(row["suspect_wealth_games"]),
                 ]

@@ -28,6 +28,8 @@ from money_sim.constants import (
     NETWORK_SALARY_DEN,
     PART_TIME_DEN,
     PART_TIME_NUM,
+    PRICE_GROWTH_DEN,
+    PRICE_GROWTH_NUM,
     PRICE_START,
     RENT_SHARE,
     RUST_LATE_MONTH,
@@ -142,7 +144,35 @@ def risk_distribution(skill: int, regime: str) -> tuple[float, float, float, flo
 
 
 def consume_lifestyle_gain(spend: int) -> int:
-    return min(4, max(1, spend // 10_000))
+    # 最低 2：按精力能维持的消费频率，加 1 会被下个月的回落抵消，地板显不出来。
+    return min(4, max(2, spend // 10_000))
+
+
+def consume_outlook(lifestyle: int, price_index: int, spend: int, will_consume: bool) -> dict:
+    """本月实扣的水准，以及相对「不消费」下个月多出来的生活费。"""
+    gain = consume_lifestyle_gain(spend) if will_consume and spend else 0
+    charged = clamp(lifestyle + gain, 100, 220)
+    if will_consume and spend:
+        after = charged
+    else:
+        after = clamp(max(100, lifestyle - 1), 100, 220)
+    skipped = clamp(max(100, lifestyle - 1), 100, 220)
+    next_index = price_index * PRICE_GROWTH_NUM // PRICE_GROWTH_DEN
+
+    def parts(level: int) -> tuple[int, int, int]:
+        full = living_cost(level, next_index)
+        rent = rent_of(full)
+        return full, rent, full - rent
+
+    full_after, rent_after, own_after = parts(after)
+    full_skip, rent_skip, own_skip = parts(skipped)
+    return {
+        "charged_lifestyle": charged,
+        "lifestyle_next": after,
+        "living_delta_rent": full_after - full_skip,
+        "living_delta_own": own_after - own_skip,
+        "rent_delta": rent_after - rent_skip,
+    }
 
 
 def consume_stress_relief(spend: int) -> int:

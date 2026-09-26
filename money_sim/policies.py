@@ -82,6 +82,42 @@ def _pay_debt(state: GameState, cash_room: int) -> int:
     return min(state.debt, cash_room)
 
 
+def _bill(state: GameState, lifestyle: int) -> int:
+    full = living_cost(lifestyle, state.price_index)
+    if state.home_value:
+        return full - rent_of(full) + state.mortgage_payment + home_maintenance(state.home_value)
+    return full
+
+
+def _wants_consume(state: GameState) -> bool:
+    """精力还够、自主还没顶到过时门槛、再抬水准不会把账单撑过开局的一成。"""
+    if state.energy < 46 or state.stress > 62:
+        return False
+    if state.autonomy >= 70:
+        return False
+    if state.cash < _bill(state, state.lifestyle) * 2 + MIN_CONSUME:
+        return False
+    raised = min(220, state.lifestyle + 2)
+    # 15% 停在精力撑得住的那一串消费之上，租房和自住停在同一处。10% 会在这一串里分开。
+    if _bill(state, raised) > _bill(state, 100) * 110 // 100 and state.autonomy >= 36:
+        return False
+    return True
+
+
+def _spend_on_consume(state: GameState, slots: list[str]) -> tuple[list[str], int]:
+    slots = list(slots)
+    if not _wants_consume(state):
+        return slots, 0
+    for index, slot in enumerate(slots):
+        # 景气好的时候，这个槽拿去博收益，不拿去抬生活费。
+        if slot == "invest" and state.regime == "bull":
+            continue
+        if slot in ("rest", "invest"):
+            slots[index] = "consume"
+            return slots, MIN_CONSUME * slots.count("consume")
+    return slots, 0
+
+
 def policy_steady(state: GameState) -> Plan:
     """全职攒钱，早期学职业，景气差时降低仓位。不碰副业。"""
     if state.energy < LOW_ENERGY_FULL:
@@ -116,6 +152,9 @@ def policy_steady(state: GameState) -> Plan:
     if state.contract_left == 0 and state.career >= 36 and state.energy >= 50 and state.autonomy >= 36:
         sign = 6
     employment, slots, sign = _bind(state, employment, slots, sign)
+    slots, consume_cash = _spend_on_consume(state, slots)
+    if "invest" not in slots:
+        risk = 0
     lock_amount = 0
     sellable = _sellable(state)
     if state.lock_left == 0 and from_index == 0 and state.regime == "bull" and sellable >= 120_000 and state.cash > buffer:
@@ -129,6 +168,7 @@ def policy_steady(state: GameState) -> Plan:
         risk_pct=risk,
         sign_months=sign,
         lock_amount=lock_amount,
+        consume_cash=consume_cash,
     )
     return ensure_plan(state, _consider_offer(state, plan))
 
@@ -148,7 +188,7 @@ def _consider_offer(state: GameState, plan: Plan) -> Plan:
 
 
 def policy_grind(state: GameState) -> Plan:
-    """极端偏科：只上班、只买指数，永不学习、永不做副业、几乎不消费。"""
+    """极端偏科：只上班、只买指数，永不学习、永不做副业、从不消费。"""
     if state.energy < LOW_ENERGY_FULL:
         employment = "free"
         slots = ["rest", "rest", "rest", "rest"]
@@ -172,7 +212,8 @@ def policy_yolo(state: GameState) -> Plan:
         slots = ["rest", "venture", "invest", "learn_venture"]
     else:
         slots = ["venture", "invest", "learn_venture", "learn_invest"]
-    plan = Plan("free", slots, risk_pct=100 if "invest" in slots else 0)
+    slots, consume_cash = _spend_on_consume(state, slots)
+    plan = Plan("free", slots, risk_pct=100 if "invest" in slots else 0, consume_cash=consume_cash)
     quoted = quote(state, plan)
     buffer = living_cost(state.lifestyle, state.price_index) * 5
     # 卖掉大部分指数，但留下两成，避免同月把店贱卖掉。
@@ -180,7 +221,7 @@ def policy_yolo(state: GameState) -> Plan:
     keep_index = sellable // 5
     plan.from_index = max(0, sellable - keep_index)
     sell = plan.from_index * 997 // 1_000
-    spare = state.cash + sell - quoted["tuition"] - quoted["build_cost"] - buffer
+    spare = state.cash + sell - quoted["tuition"] - quoted["build_cost"] - buffer - consume_cash
     if "venture" in slots or state.business_stage != "none":
         plan.to_business = max(0, spare)
     else:
@@ -272,6 +313,9 @@ def policy_owner(state: GameState) -> Plan:
     if to_business and from_index:
         from_index = 0
     employment, slots, sign = _bind(state, employment, slots, 0)
+    slots, consume_cash = _spend_on_consume(state, slots)
+    if "invest" not in slots:
+        risk = 0
     plan = Plan(
         employment,
         slots,
@@ -284,6 +328,7 @@ def policy_owner(state: GameState) -> Plan:
         accept_offer=accept,
         exit_business=accept,
         sign_months=sign,
+        consume_cash=consume_cash,
     )
     if validate(state, plan) or quote(state, plan)["energy_after"] < 0:
         plan = Plan("part", ["rest", "rest"])
@@ -318,6 +363,7 @@ def policy_nest(state: GameState) -> Plan:
         sign_months=base.sign_months,
         buy_home=True,
         accept_job=base.accept_job,
+        consume_cash=base.consume_cash,
     )
     if not validate(state, trial):
         return trial
