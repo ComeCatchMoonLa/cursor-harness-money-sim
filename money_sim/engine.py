@@ -18,8 +18,6 @@ from money_sim.constants import (
     DISTRESS_EXIT_NUM,
     EMERGENCY_FEE_DEN,
     EMERGENCY_FEE_NUM,
-    GAIN_CASH_DEN,
-    GAIN_CASH_NUM,
     INDEX_SELL_FEE_DEN,
     INDEX_SELL_FEE_NUM,
     LEAVE_STRESS,
@@ -454,13 +452,6 @@ def _move(state: GameState, account: str, amount: int, reason: str, ledger: list
     ledger.append({"account": account, "amount": amount, "reason": reason})
 
 
-def cash_from_gain(liquid_gain: int) -> int:
-    """正的流动涨幅拆出一半。奇数的一块留在市值里。亏损和零不拆。封闭仓不进这里。"""
-    if liquid_gain <= 0:
-        return 0
-    return liquid_gain * GAIN_CASH_NUM // GAIN_CASH_DEN
-
-
 def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | None]:
     errors = validate(state, plan)
     if errors:
@@ -609,11 +600,6 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
     _move(s, "portfolio", invest_return, "invest_pnl", ledger)
     if locked_base:
         s.locked = max(0, min(s.portfolio, locked_base + locked_gain))
-    # 先入账再拆，当月净资产不变。拆出的部分在付生活费之前进现金，下月不再复利。
-    gain_cash = cash_from_gain(liquid_gain)
-    if gain_cash:
-        _move(s, "portfolio", -gain_cash, "gain_cash", ledger)
-        _move(s, "cash", gain_cash, "gain_cash", ledger)
 
     business_net = 0
     gross = 0
@@ -752,7 +738,6 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         "living": live,
         "business_net": business_net,
         "invest_return": invest_return,
-        "gain_cash": gain_cash,
         "event": event,
         "shock": shock,
         "home_value": s.home_value,
