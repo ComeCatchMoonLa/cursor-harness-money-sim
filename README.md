@@ -12,7 +12,7 @@ Cursor Harness 小实验仓库：测「人只定边界 + 目标，Agent 自主�
 - [`HARNESS.md`](./HARNESS.md) — 权限、安全边界、工作方式（**只在本仓；可 push 功能分支并开/更新 PR；禁 force-push、其他仓、CardRPG、真金账户**）。
 - [`ACCEPTANCE.md`](./ACCEPTANCE.md) — 产品定位与验收标准（图形界面可玩 / 能测 / 批量模拟三指标 / 自主洞察 / 反 Goodhart）。
 
-每版把进度写进 [`PROGRESS.md`](./PROGRESS.md)（含版本命题，以及 What I learned / failed / changed / Why）。
+每版开工前把版本命题拆成小目标再逐项做；收工前测试全绿（或诚实记下失败）并写完四行，再 commit。进度写进 [`PROGRESS.md`](./PROGRESS.md)（含版本命题、小目标，以及 What I learned / failed / changed / Why）。
 
 ## 参考知识（卡住再读，非必读作业）
 
