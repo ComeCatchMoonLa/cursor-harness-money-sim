@@ -13,6 +13,15 @@ PRICE_GROWTH_DEN = 10_000
 START_ENERGY = 76
 START_STRESS = 22
 START_AUTONOMY = 42
+START_CONDITION = 78
+CONDITION_LOW = 40
+CONDITION_HOLD = 58
+CONDITION_EASE = 74
+CONDITION_WORK = {"full": -5, "light": -3, "part": -2, "free": 2}
+CONDITION_REST = 3
+CONDITION_CONSUME_LOW = 8
+CONDITION_CONSUME_MID = 2
+CONDITION_EFFORT = 1
 START_CAREER = 24
 START_VENTURE = 6
 START_INVEST = 10
@@ -23,12 +32,15 @@ SALARY_BASE = 11_500
 SALARY_PER_SKILL = 210
 PART_TIME_NUM = 74
 PART_TIME_DEN = 100
+# 轻职介于兼职和全职之间。少掉的那一截工资是少工作的代价，不是奖励。
+LIGHT_NUM = 82
+LIGHT_DEN = 100
 NETWORK_SALARY_DEN = 500
 
-WORK_ENERGY = {"full": -22, "part": -12, "free": 0}
-WORK_STRESS = {"full": 7, "part": 4, "free": -2}
-WORK_AUTONOMY = {"full": -3, "part": 1, "free": 4}
-WORK_SLOTS = {"full": 3, "part": 2, "free": 0}
+WORK_ENERGY = {"full": -22, "light": -16, "part": -12, "free": 0}
+WORK_STRESS = {"full": 7, "light": 5, "part": 4, "free": -2}
+WORK_AUTONOMY = {"full": -3, "light": 2, "part": 1, "free": 4}
+WORK_SLOTS = {"full": 3, "light": 2, "part": 2, "free": 0}
 LOW_ENERGY_FULL = 14
 TOTAL_SLOTS = 4
 
@@ -58,6 +70,8 @@ TUITION = 1_000
 BUILD_COST = 7_000
 BUILDS_TO_LAUNCH = 3
 MIN_CONSUME = 2_000
+# 消费槽给的时间自主。不随金额增加，避免越花越赚。
+CONSUME_AUTONOMY = 6
 
 DEBT_CAP = 160_000
 DEBT_RATE_NUM = 12
@@ -140,6 +154,7 @@ LOG_FIELDS = (
     "debt",
     "net_worth",
     "energy",
+    "condition",
     "salary",
     "living",
     "business_net",

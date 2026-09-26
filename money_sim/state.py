@@ -10,6 +10,7 @@ from money_sim.constants import (
     PRICE_START,
     START_AUTONOMY,
     START_CAREER,
+    START_CONDITION,
     START_CAREER_FRESH,
     START_CASH,
     START_ENERGY,
@@ -59,6 +60,7 @@ class GameState:
     energy: int = START_ENERGY
     stress: int = START_STRESS
     autonomy: int = START_AUTONOMY
+    condition: int = START_CONDITION
     career: int = START_CAREER
     venture: int = START_VENTURE
     invest: int = START_INVEST
@@ -105,6 +107,7 @@ class GameState:
             energy=self.energy,
             stress=self.stress,
             autonomy=self.autonomy,
+            condition=self.condition,
             career=self.career,
             venture=self.venture,
             invest=self.invest,
@@ -204,6 +207,7 @@ def to_save_dict(state: GameState) -> dict:
         "energy": state.energy,
         "stress": state.stress,
         "autonomy": state.autonomy,
+        "condition": state.condition,
         "career": state.career,
         "venture": state.venture,
         "invest": state.invest,
@@ -253,6 +257,7 @@ def from_save_dict(data: dict) -> GameState:
         energy=int(data["energy"]),
         stress=int(data["stress"]),
         autonomy=int(data["autonomy"]),
+        condition=int(data.get("condition", START_CONDITION)),
         career=int(data["career"]),
         venture=int(data["venture"]),
         invest=int(data["invest"]),
@@ -339,6 +344,7 @@ def public_view(state: GameState) -> dict:
         "energy": state.energy,
         "stress": state.stress,
         "autonomy": state.autonomy,
+        "condition": state.condition,
         "career": state.career,
         "venture": state.venture,
         "invest": state.invest,

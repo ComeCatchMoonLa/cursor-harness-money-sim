@@ -8,6 +8,8 @@ from money_sim.constants import (
     BUILD_COST,
     BUILDS_TO_LAUNCH,
     BURNOUT_LIMIT,
+    CONDITION_LOW,
+    CONSUME_AUTONOMY,
     CONTRACT_TERMS,
     DEBT_CAP,
     DEBT_RATE_DEN,
@@ -69,12 +71,15 @@ from money_sim.economy import (
     business_opex,
     clamp,
     clamp_return,
+    condition_after,
     consume_lifestyle_gain,
     consume_network_gain,
+    consume_outlook,
     consume_stress_relief,
     contract_rest_gain,
     demand_bp,
     down_and_loan,
+    ease_position,
     exit_pct,
     home_maintenance,
     home_price,
@@ -101,7 +106,7 @@ def _as_int(value: object) -> int | None:
 def commitment(state: GameState, plan: Plan) -> dict:
     """合同把就业锁死。精力不够时这个月停薪请假，而不是把局卡死。"""
     bound = state.contract_left > 0 and not plan.break_contract
-    leave = bound and state.energy < LOW_ENERGY_FULL
+    leave = bound and (state.energy < LOW_ENERGY_FULL or state.condition < CONDITION_LOW)
     if leave:
         employment = "free"
     elif bound:
@@ -116,11 +121,16 @@ def commitment(state: GameState, plan: Plan) -> dict:
     }
 
 
-def _housing_living(state: GameState, will_own: bool) -> int:
+def housing_bill(state: GameState) -> int:
     full = living_cost(state.lifestyle, state.price_index)
-    if will_own:
-        return full - rent_of(full)
-    return full
+    bill = full - rent_of(full) if state.home_value else full
+    if state.home_value:
+        bill += state.mortgage_payment + home_maintenance(state.home_value)
+    return bill
+
+
+def ease_of(state: GameState) -> dict:
+    return ease_position(realizable_net(state), state.month, state.career, state.network, housing_bill(state))
 
 
 def quote(state: GameState, plan: Plan) -> dict:
@@ -186,6 +196,9 @@ def quote(state: GameState, plan: Plan) -> dict:
     will_own = (state.home_value > 0 and not selling_home) or buying
     home_pay = mortgage_payment(loan) if buying else (state.mortgage_payment if will_own else 0)
     maint = home_maintenance(price if buying else state.home_value) if will_own else 0
+    outlook = consume_outlook(state.lifestyle, state.price_index, plan.consume_cash, consume_slots > 0)
+    charged_full = living_cost(outlook["charged_lifestyle"], state.price_index)
+    charged_living = charged_full - rent_of(charged_full) if will_own else charged_full
     sale_net = 0
     if selling_home:
         sale_net = home_proceeds(state.home_value, 100 - HOME_SELL_COST) - state.mortgage
@@ -202,6 +215,16 @@ def quote(state: GameState, plan: Plan) -> dict:
         if slot == "rest" and bound["contracted_pay"]:
             gain = rest_gain
         energy_after += gain
+    next_condition = condition_after(state.condition, employment, plan.slots)
+    autonomy_next = state.autonomy
+    if taking_offer:
+        autonomy_next = max(8, autonomy_next - JOB_OFFER_AUTONOMY)
+    autonomy_next += WORK_AUTONOMY[employment]
+    autonomy_next += 2 * sum(1 for slot in plan.slots if slot == "rest")
+    if consume_slots:
+        autonomy_next += CONSUME_AUTONOMY
+    autonomy_next = clamp(autonomy_next, 8, 96)
+    position = ease_of(state)
     return {
         "salary": pay,
         "bonus": bonus,
@@ -209,9 +232,11 @@ def quote(state: GameState, plan: Plan) -> dict:
         "leave": bound["leave"],
         "job_gap": taking_offer,
         "employment": employment,
+        "ease_open": position["open"],
+        "ease_projected": position["projected"],
         "operating": operating,
-        "living": _housing_living(state, will_own),
-        "housing_living": _housing_living(state, will_own),
+        "living": charged_living,
+        "housing_living": charged_living,
         "down_payment": down if buying else 0,
         "mortgage_payment": home_pay if will_own and not selling_home else 0,
         "home_maintenance": maint,
@@ -229,8 +254,15 @@ def quote(state: GameState, plan: Plan) -> dict:
         "sell_proceeds": sell_proceeds,
         "cash_after_choices": cash_after,
         "energy_after": energy_after,
+        "condition_next": next_condition,
+        "autonomy_next": autonomy_next,
         "learn_slots": learn_slots,
         "consume_slots": consume_slots,
+        "consume_autonomy": CONSUME_AUTONOMY if consume_slots else 0,
+        "lifestyle_next": outlook["lifestyle_next"],
+        "living_delta_rent": outlook["living_delta_rent"] if consume_slots else 0,
+        "living_delta_own": outlook["living_delta_own"] if consume_slots else 0,
+        "rent_delta": outlook["rent_delta"] if consume_slots else 0,
         "exiting": exiting,
         "contract_rest": rest_gain,
         "rust_step": rust_step(state.month, state.autonomy),
@@ -252,15 +284,26 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         errors.append("合同没到期，不能再签")
     if plan.sign_months and state.energy < LOW_ENERGY_FULL:
         errors.append("精力不够，这个月签了也上不了班")
+    elif plan.sign_months and state.condition < CONDITION_LOW:
+        errors.append("状态太差，这个月签了也上不了全职")
     if plan.break_contract and state.contract_left <= 0:
         errors.append("没有合同可违约")
     if bound["leave"]:
         if plan.employment != "free":
-            errors.append("这个月是病假，要自己安排时间")
+            if state.energy < LOW_ENERGY_FULL:
+                errors.append("这个月是病假，要自己安排时间")
+            else:
+                errors.append("状态太差，这个月停薪请假，要自己安排时间")
     elif bound["bound"] and plan.employment != "full":
         errors.append("合同没到期")
     elif plan.employment == "full" and state.energy < LOW_ENERGY_FULL:
         errors.append("精力不足，无法全职")
+    elif plan.employment == "full" and state.condition < CONDITION_LOW:
+        errors.append("状态太差，无法全职")
+    if plan.employment == "light" and not bound["bound"] and not ease_of(state)["open"]:
+        errors.append("还没攒到可以少工作的位置")
+    if plan.employment == "light" and plan.sign_months:
+        errors.append("轻职这个月不能再签全职合同")
     need = TOTAL_SLOTS - WORK_SLOTS[plan.employment]
     if len(plan.slots) != need:
         errors.append(f"本月应安排 {need} 个自由时间槽")
@@ -371,6 +414,15 @@ def preview(state: GameState, plan: Plan) -> dict:
             warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
     if quoted["job_gap"]:
         warnings.append("接手外部报价的这个月没有工资，月供和生活费照付。这份报价本身不加技能，学习仍然算。")
+    if quoted["employment"] == "light":
+        warnings.append("轻职工资低于全职，时间自主会上去。状态恢复了仍可以留在轻职。景气月继续全职往往更合适。")
+    if quoted["employment"] == "full" and quoted["condition_next"] < CONDITION_LOW:
+        warnings.append("下月状态低于 40，不能再全职。合同还在就会停薪请假。")
+    if quoted["consume_slots"]:
+        warnings.append(
+            f"消费让时间自主 +{quoted['consume_autonomy']}，多花的钱不会再加。"
+            f"下月租房生活费多 {quoted['living_delta_rent']}，已购房多 {quoted['living_delta_own']}。"
+        )
     if plan.buy_home and not errors:
         warnings.append("买下之后可兑现会先掉一截，月供停不下来，房子也不能当月按市价拿回来。")
     if state.regime == "bear" and (plan.buy_home or state.home_value > 0):
@@ -444,7 +496,10 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         notes.append(f"签了 {plan.sign_months} 个月全职")
     if quoted["leave"]:
         s.stress += LEAVE_STRESS
-        notes.append("合同月请了病假，没有工资")
+        if state.energy < LOW_ENERGY_FULL:
+            notes.append("合同月请了病假，没有工资")
+        else:
+            notes.append("状态太低，合同月停薪请假，没有工资")
 
     _move(s, "cash", quoted["salary"], "salary", ledger)
     if quoted["tuition"]:
@@ -482,6 +537,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         notes.append("卖掉自住房，扣掉交易成本并还清房贷")
 
     s.energy = quoted["energy_after"]
+    s.condition = quoted["condition_next"]
     s.stress += WORK_STRESS[quoted["employment"]]
     s.autonomy += WORK_AUTONOMY[quoted["employment"]]
     for slot in plan.slots:
@@ -500,10 +556,13 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
             if start_autonomy < 28:
                 gain = max(1, gain - 2)
             setattr(s, attr, min(100, current + gain))
+    if "consume" in plan.slots:
+        s.autonomy += CONSUME_AUTONOMY
     if plan.consume_cash:
         s.stress -= consume_stress_relief(plan.consume_cash)
         s.lifestyle += consume_lifestyle_gain(plan.consume_cash)
         s.network += consume_network_gain(plan.consume_cash)
+    s.lifestyle = clamp(s.lifestyle, 100, 220)
 
     overdraft = quoted["energy_after"] < 0
     if overdraft:
@@ -672,6 +731,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         "debt": s.debt,
         "net_worth": net_worth(s),
         "energy": s.energy,
+        "condition": s.condition,
         "stress": s.stress,
         "autonomy": s.autonomy,
         "salary": quoted["salary"],
@@ -746,7 +806,7 @@ def _apply_event(state, rng, employment, salary_paid, gross, ledger, notes) -> s
     options: list[tuple[str, float]] = []
     if state.stress > 55:
         options.append(("medical", 0.08))
-    if employment in ("full", "part") and state.contract_left <= 0:
+    if employment in ("full", "light", "part") and state.contract_left <= 0:
         chance = 0.025
         if state.stress > 70:
             chance += 0.05
@@ -799,7 +859,7 @@ def _roll_job_offer(state: GameState, quoted: dict, rng, notes: list[str]) -> No
         if state.offer_left == 0:
             state.offer_pay = 0
             notes.append("外部报价到期，工资回到按技能算")
-    employed = quoted["employment"] in ("full", "part") and not quoted["leave"]
+    employed = quoted["employment"] in ("full", "light", "part") and not quoted["leave"]
     if state.offer_left == 0 and employed and state.status == "playing":
         chance = JOB_OFFER_P_FRESH if state.career_fresh >= JOB_OFFER_FRESH else JOB_OFFER_P_STALE
         if rng.random() < chance:

@@ -8,7 +8,7 @@ const SLOT_OPTIONS = [
   ["consume", "消费"],
 ];
 
-const WORK_SLOTS = { full: 3, part: 2, free: 0 };
+const WORK_SLOTS = { full: 3, light: 2, part: 2, free: 0 };
 const STATUS_TEXT = {
   playing: "进行中",
   won: "胜利",
@@ -103,9 +103,11 @@ function renderStatus() {
   setText("#energy", `${state.energy}/100`);
   setText("#stress", `${state.stress}/100`);
   setText("#autonomy", `${state.autonomy}/100`);
+  setText("#condition", `${state.condition}/100`);
   document.querySelector("#energy-bar").value = state.energy;
   document.querySelector("#stress-bar").value = state.stress;
   document.querySelector("#autonomy-bar").value = state.autonomy;
+  document.querySelector("#condition-bar").value = state.condition;
   setText("#career", skillText(state.career, state.career_fresh, state.rust_step));
   setText("#venture", skillText(state.venture, state.venture_fresh, state.rust_step));
   setText("#invest", skillText(state.invest, state.invest_fresh, state.rust_step));
@@ -115,9 +117,22 @@ function renderStatus() {
   setText("#lock-label", state.lock_left ? `${wan(state.locked)} · 剩余 ${state.lock_left} 个月` : "没有封闭");
   setText("#stage", state.burnout_streak ? `连续透支 ${state.burnout_streak} 个月` : "透支记满 3 个月会过劳失败");
   const full = document.querySelector('#employment option[value="full"]');
+  const light = document.querySelector('#employment option[value="light"]');
   const part = document.querySelector('#employment option[value="part"]');
   full.textContent = `全职 · 工资 ${wan(state.salary_full)} · 占 3 个时间槽`;
+  light.textContent = state.ease_open
+    ? `轻职 · 工资 ${wan(state.salary_light)} · 占 2 个时间槽`
+    : `轻职 · 还没到可以少工作的位置`;
   part.textContent = `兼职 · 工资 ${wan(state.salary_part)} · 占 2 个时间槽`;
+  const projected = `按轻职储蓄大约到 ${wan(state.ease_projected)}`;
+  const wageHeld = state.regime === "bull" || state.contract_left || state.offer_left || state.condition < 40 || state.energy < 24;
+  setText("#ease-label", state.ease_open
+    ? (state.ease_covered
+      ? (wageHeld
+        ? `少工作可以选 · ${projected}。这个月仍拿工资`
+        : `少工作可以选 · ${projected}，也可以不拿工资`)
+      : `少工作可以选 · ${projected}，还差一截`)
+    : "少工作还不行");
   const offer = document.querySelector("#offer");
   const lines = [];
   if (state.pending_offer) {
@@ -180,7 +195,8 @@ function renderLog() {
     const notes = (row.notes || []).join("；");
     const shown = row.realizable == null ? row.net_worth : row.realizable;
     const shock = row.shock && row.shock !== "none" ? ` · ${row.shock}` : "";
-    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 可兑现 ${wan(shown)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)} · ${row.event}${shock}${notes ? " · " + notes : ""}`;
+    const condition = row.condition == null ? "" : ` · 状态 ${row.condition}`;
+    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 可兑现 ${wan(shown)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)}${condition} · ${row.event}${shock}${notes ? " · " + notes : ""}`;
     list.append(item);
   });
 }
@@ -188,7 +204,7 @@ function renderLog() {
 function ensureSlots() {
   const breaking = document.querySelector("#break-contract").checked;
   const bound = state && state.contract_left > 0 && !breaking;
-  const leave = bound && state.energy < 14;
+  const leave = bound && (state.energy < 14 || state.condition < 40);
   const employment = document.querySelector("#employment");
   employment.disabled = Boolean(bound);
   document.querySelector("#contract").disabled = Boolean(state && state.contract_left > 0 && !breaking);
@@ -255,6 +271,10 @@ function showPreview(payload) {
     quote.home_maintenance ? `维修 ${wan(quote.home_maintenance)}` : "",
     quote.home_sale_net ? `卖房结算 ${wan(quote.home_sale_net)}` : "",
     quote.job_gap ? "这个月交接，没有工资" : "",
+    quote.employment === "light" ? "轻职，工资低于全职" : "",
+    quote.autonomy_next != null ? `行动后时间自主 ${quote.autonomy_next}` : "",
+    quote.condition_next != null ? `行动后状态 ${quote.condition_next}` : "",
+    quote.consume_slots ? `时间自主 +${quote.consume_autonomy}，下月租房生活费多 ${wan(quote.living_delta_rent)}，已购房多 ${wan(quote.living_delta_own)}` : "",
   ].filter(Boolean).join("，");
   box.textContent = `预计工资 ${wan(quote.salary)}，学费 ${wan(quote.tuition)}，建设 ${wan(quote.build_cost)}，生活费 ${wan(quote.living)}，行动后精力 ${quote.energy_after}。${extra ? extra + "。" : ""}${warnings}`;
 }
@@ -291,6 +311,7 @@ async function resolveMonth() {
     renderStatus();
     showPreview(null);
     schedulePreview();
+    await refreshMatch();
   } catch (error) {
     document.querySelector("#preview").textContent = error.message;
   } finally {
@@ -298,7 +319,220 @@ async function resolveMonth() {
   }
 }
 
+function collapseRoutes(routes) {
+  const seen = new Set();
+  const kept = [];
+  for (const route of routes) {
+    if (seen.has(route.stake)) {
+      continue;
+    }
+    seen.add(route.stake);
+    kept.push(route);
+  }
+  return kept;
+}
+
+function fillMatchSelects(routes) {
+  for (const id of ["match-left", "match-right"]) {
+    const select = document.querySelector(`#${id}`);
+    const previous = select.value;
+    select.replaceChildren();
+    for (const route of routes) {
+      const option = document.createElement("option");
+      option.value = route.name;
+      option.textContent = route.title;
+      select.append(option);
+    }
+    if (previous) {
+      select.value = previous;
+    }
+  }
+  const left = document.querySelector("#match-left");
+  const right = document.querySelector("#match-right");
+  if (!left.value) {
+    left.value = "steady";
+  }
+  if (!right.value || right.value === left.value) {
+    right.value = routes.some((route) => route.name === "coast") ? "coast" : routes[routes.length - 1].name;
+  }
+}
+
+const EMPLOY_TEXT = { full: "全职", light: "轻职", part: "兼职", free: "不拿固定工资" };
+
+function employmentText(value) {
+  if (!value) {
+    return "—";
+  }
+  return EMPLOY_TEXT[value] || value;
+}
+
+function renderMatch(data) {
+  const note = document.querySelector("#match-note");
+  if (!data.months.length) {
+    note.textContent = "还没有结算。这一月分不开。这里不替你选。";
+  } else if (!data.closer) {
+    note.textContent = "这一月分不开。这里不替你选。";
+  } else {
+    note.textContent = `更接近${data.closer_title}。这里不替你选。`;
+  }
+  const table = document.querySelector("#match-table");
+  table.replaceChildren();
+  if (!data.months.length) {
+    return;
+  }
+  const leftTitle = document.querySelector("#match-left").selectedOptions[0].textContent;
+  const rightTitle = document.querySelector("#match-right").selectedOptions[0].textContent;
+  const head = document.createElement("tr");
+  for (const text of ["月", "你", leftTitle, rightTitle]) {
+    const cell = document.createElement("th");
+    cell.textContent = text;
+    head.append(cell);
+  }
+  table.append(head);
+  for (const row of data.months) {
+    const line = document.createElement("tr");
+    for (const value of [String(row.month), employmentText(row.player), employmentText(row.left), employmentText(row.right)]) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      line.append(cell);
+    }
+    table.append(line);
+  }
+}
+
+async function refreshMatch() {
+  const left = document.querySelector("#match-left").value;
+  const right = document.querySelector("#match-right").value;
+  const note = document.querySelector("#match-note");
+  if (!left || !right || left === right) {
+    note.textContent = "要两条不同的路线。";
+    document.querySelector("#match-table").replaceChildren();
+    return;
+  }
+  const data = await api(`/api/match?left=${encodeURIComponent(left)}&right=${encodeURIComponent(right)}`);
+  renderMatch(data);
+}
+
+async function loadRoutes() {
+  const panel = document.querySelector("#routes-panel");
+  try {
+    const response = await fetch("/static/routes.json");
+    if (!response.ok) {
+      return;
+    }
+    const data = await response.json();
+    document.querySelector("#routes-note").textContent = `种子 ${data.seed}，每种 ${data.games} 局。工作强度和时间自主看第 37 到 72 月。至少两个轴分开才留下。这里不替你选这个月的方案。`;
+    const routes = collapseRoutes(data.routes);
+    const list = document.querySelector("#routes");
+    list.replaceChildren();
+    for (const route of routes) {
+      const item = document.createElement("article");
+      item.className = "route";
+      item.dataset.testid = `route-${route.name}`;
+      const title = document.createElement("h3");
+      title.textContent = route.title;
+      const stake = document.createElement("p");
+      stake.textContent = route.stake;
+      const axes = document.createElement("p");
+      axes.className = "axes";
+      const month = route.median_win_month == null ? "没有赢的局" : `中位第 ${Math.round(route.median_win_month)} 月`;
+      axes.textContent = `达成 ${(route.win_rate * 100).toFixed(1)}% · ${month} · 硬失败 ${(route.hard_fail_rate * 100).toFixed(1)}% · 强度 ${Number(route.mean_intensity).toFixed(2)} · 自主 ${Number(route.mean_autonomy).toFixed(1)}`;
+      const line = document.createElement("p");
+      line.textContent = route.mainline;
+      item.append(title, stake, axes, line);
+      list.append(item);
+    }
+    fillMatchSelects(routes);
+    panel.hidden = false;
+    await refreshMatch();
+  } catch (_error) {
+    panel.hidden = true;
+  }
+}
+
+function readSnapshot() {
+  const read = (id) => Number(document.querySelector(id).value);
+  return {
+    month: read("#snap-month"),
+    cash: read("#snap-cash"),
+    portfolio: read("#snap-portfolio"),
+    locked: read("#snap-locked"),
+    debt: read("#snap-debt"),
+    home_value: read("#snap-home"),
+    mortgage: read("#snap-mortgage"),
+    career: read("#snap-career"),
+    venture: read("#snap-venture"),
+    invest: read("#snap-invest"),
+    condition: read("#snap-condition"),
+    contract_left: read("#snap-contract"),
+    price_index: read("#snap-price"),
+  };
+}
+
+function axisLine(route) {
+  const month = route.median_win_month == null ? "没有赢的局" : `中位第 ${Math.round(route.median_win_month)} 月`;
+  return `达成 ${(route.win_rate * 100).toFixed(1)}% · ${month} · 硬失败 ${(route.hard_fail_rate * 100).toFixed(1)}% · 强度 ${Number(route.mean_intensity).toFixed(2)} · 自主 ${Number(route.mean_autonomy).toFixed(1)}`;
+}
+
+function forwardCard(route, variant) {
+  const item = document.createElement("article");
+  item.className = variant ? "route variant" : "route";
+  item.dataset.testid = variant ? `snap-variant-${route.name}` : `snap-route-${route.name}`;
+  const title = document.createElement(variant ? "h4" : "h3");
+  title.textContent = route.title;
+  const axes = document.createElement("p");
+  axes.className = "axes";
+  axes.textContent = axisLine(route);
+  const details = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = "从这一月起的主线和变招";
+  const line = document.createElement("p");
+  line.textContent = route.mainline;
+  details.append(summary, line);
+  item.append(title, axes, details);
+  if (!variant && route.variants && route.variants.length) {
+    const block = document.createElement("div");
+    block.className = "route-variants";
+    for (const child of route.variants) {
+      block.append(forwardCard(child, true));
+    }
+    details.append(block);
+  }
+  return item;
+}
+
+function renderSnapshot(data) {
+  const result = document.querySelector("#snapshot-result");
+  const list = document.querySelector("#snapshot-routes");
+  list.replaceChildren();
+  const notes = data.notes || [];
+  result.textContent = [data.message, ...notes].filter(Boolean).join("");
+  if (!data.scored) {
+    return;
+  }
+  for (const route of data.routes) {
+    list.append(forwardCard(route, false));
+  }
+}
+
+async function scoreSnapshot() {
+  const button = document.querySelector("#btn-snapshot");
+  const result = document.querySelector("#snapshot-result");
+  button.disabled = true;
+  result.textContent = "正在打分。每种路线 200 局。";
+  try {
+    const data = await api("/api/snapshot", readSnapshot());
+    renderSnapshot(data);
+  } catch (error) {
+    result.textContent = error.message;
+    document.querySelector("#snapshot-routes").replaceChildren();
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function boot() {
+  await loadRoutes();
   state = await api("/api/state");
   resetForm();
   renderStatus();
@@ -326,11 +560,15 @@ document.querySelector("#employment").addEventListener("change", () => {
   document.querySelector(selector).addEventListener("change", schedulePreview);
 });
 document.querySelector("#btn-resolve").addEventListener("click", resolveMonth);
+document.querySelector("#btn-snapshot").addEventListener("click", scoreSnapshot);
+document.querySelector("#match-left").addEventListener("change", refreshMatch);
+document.querySelector("#match-right").addEventListener("change", refreshMatch);
 document.querySelector("#btn-new").addEventListener("click", async () => {
   state = await api("/api/new", {});
   resetForm();
   renderStatus();
   schedulePreview();
+  await refreshMatch();
 });
 document.querySelector("#btn-save").addEventListener("click", async () => {
   state = (await api("/api/save", {})).state;
@@ -342,6 +580,7 @@ document.querySelector("#btn-load").addEventListener("click", async () => {
     resetForm();
     renderStatus();
     schedulePreview();
+    await refreshMatch();
   } catch (error) {
     document.querySelector("#preview").textContent = error.message;
   }

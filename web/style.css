@@ -133,6 +133,24 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 #log li { font-size: 0.88rem; }
 
 #chart { width: 100%; height: 120px; background: #f7f1e7; border-radius: 8px; margin-bottom: 12px; }
+
+.route-list { display: grid; gap: 8px; margin-top: 10px; }
+.route {
+  padding: 10px 12px;
+  background: #f7f1e7;
+  border-radius: 8px;
+}
+.route h3, .route h4 { margin: 0 0 4px; font-size: 1rem; }
+.route h4 { font-size: 0.95rem; }
+.route .axes { color: #6d6458; font-size: 0.88rem; }
+.route details { margin-top: 6px; }
+.route-variants { margin-top: 8px; display: grid; gap: 8px; }
+#routes-panel { margin: 16px 0; }
+.match-picks { display: flex; gap: 16px; margin-top: 12px; }
+.match-picks select { margin-left: 6px; }
+#match-note { margin-top: 12px; }
+#match-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9rem; }
+#match-table th, #match-table td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid #ddd4c6; }
 .rules { margin: 0; padding-left: 1.1rem; }
 
 @media (max-width: 860px) {

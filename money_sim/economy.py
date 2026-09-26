@@ -9,6 +9,13 @@ from money_sim.constants import (
     AUTONOMY_REST_LOW,
     AUTONOMY_RUST_RELIEF,
     BASE_LIVING,
+    CONDITION_CONSUME_LOW,
+    CONDITION_CONSUME_MID,
+    CONDITION_EASE,
+    CONDITION_EFFORT,
+    CONDITION_HOLD,
+    CONDITION_REST,
+    CONDITION_WORK,
     CONTRACT_REST_HIGH,
     CONTRACT_REST_LOW,
     CONTRACT_REST_MID,
@@ -22,18 +29,24 @@ from money_sim.constants import (
     HOME_MAINT_DEN,
     HOME_MAINT_NUM,
     HOME_SELL_COST,
+    LIGHT_DEN,
+    LIGHT_NUM,
+    MONTHS,
     MORTGAGE_MONTHS,
     MORTGAGE_RATE_DEN,
     MORTGAGE_RATE_NUM,
     NETWORK_SALARY_DEN,
     PART_TIME_DEN,
     PART_TIME_NUM,
+    PRICE_GROWTH_DEN,
+    PRICE_GROWTH_NUM,
     PRICE_START,
     RENT_SHARE,
     RUST_LATE_MONTH,
     SALARY_BASE,
     SALARY_PER_SKILL,
     TRIAL_EXIT_PCT,
+    WIN_NET,
 )
 
 
@@ -50,9 +63,34 @@ def salary(career: int, network: int, employment: str) -> int:
     full = full * (NETWORK_SALARY_DEN + network) // NETWORK_SALARY_DEN
     if employment == "full":
         return full
+    if employment == "light":
+        return full * LIGHT_NUM // LIGHT_DEN
     if employment == "part":
         return full * PART_TIME_NUM // PART_TIME_DEN
     return 0
+
+
+def ease_position(worth: int, month: int, career: int, network: int, bill: int) -> dict:
+    """少工作开不开，只承认最多三分之一局的全职储蓄。
+
+    把剩下上百个月的工资都算进去，开局涨一点技能就会“够到”。
+    那个位置不是攒出来的。更远的工资不计入。投影不含投资收益，也不发钱。
+    轻职若一直做到局终，投影可以低于 150 万：位置只表示现在换时间还有得选。
+    """
+    left = max(0, MONTHS - month + 1)
+    horizon = min(left, MONTHS // 3)
+    full_save = salary(career, network, "full") - bill
+    light_save = salary(career, network, "light") - bill
+    projected_full = worth + max(0, full_save) * horizon
+    projected = worth + max(0, light_save) * left
+    return {
+        "open": left >= 6 and light_save > 0 and projected_full >= WIN_NET,
+        "projected": projected,
+        "projected_full": projected_full,
+        "monthly_save": light_save,
+        "months_left": left,
+        "covered": projected >= WIN_NET,
+    }
 
 
 def living_cost(lifestyle: int, price_index: int) -> int:
@@ -141,8 +179,53 @@ def risk_distribution(skill: int, regime: str) -> tuple[float, float, float, flo
     return mu, sigma, -0.45, 0.40
 
 
+def condition_after(condition: int, employment: str, slots: list[str]) -> int:
+    """整月用月初的状态判断补多少。金额不进这个函数。"""
+    delta = CONDITION_WORK.get(employment, CONDITION_WORK["free"])
+    for slot in slots:
+        if slot == "rest":
+            if condition < CONDITION_EASE:
+                delta += CONDITION_REST
+        elif slot == "consume":
+            if condition < CONDITION_HOLD:
+                delta += CONDITION_CONSUME_LOW
+            elif condition < CONDITION_EASE:
+                delta += CONDITION_CONSUME_MID
+        elif slot == "venture" or slot.startswith("learn_"):
+            delta -= CONDITION_EFFORT
+    return clamp(condition + delta, 0, 100)
+
+
 def consume_lifestyle_gain(spend: int) -> int:
-    return min(4, max(1, spend // 10_000))
+    # 最低 2：按精力能维持的消费频率，加 1 会被下个月的回落抵消，地板显不出来。
+    return min(4, max(2, spend // 10_000))
+
+
+def consume_outlook(lifestyle: int, price_index: int, spend: int, will_consume: bool) -> dict:
+    """本月实扣的水准，以及相对「不消费」下个月多出来的生活费。"""
+    gain = consume_lifestyle_gain(spend) if will_consume and spend else 0
+    charged = clamp(lifestyle + gain, 100, 220)
+    if will_consume and spend:
+        after = charged
+    else:
+        after = clamp(max(100, lifestyle - 1), 100, 220)
+    skipped = clamp(max(100, lifestyle - 1), 100, 220)
+    next_index = price_index * PRICE_GROWTH_NUM // PRICE_GROWTH_DEN
+
+    def parts(level: int) -> tuple[int, int, int]:
+        full = living_cost(level, next_index)
+        rent = rent_of(full)
+        return full, rent, full - rent
+
+    full_after, rent_after, own_after = parts(after)
+    full_skip, rent_skip, own_skip = parts(skipped)
+    return {
+        "charged_lifestyle": charged,
+        "lifestyle_next": after,
+        "living_delta_rent": full_after - full_skip,
+        "living_delta_own": own_after - own_skip,
+        "rent_delta": rent_after - rent_skip,
+    }
 
 
 def consume_stress_relief(spend: int) -> int:

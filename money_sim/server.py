@@ -7,11 +7,13 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from money_sim.constants import LOG_FIELDS, REGIME_LABEL
 from money_sim.economy import exit_pct, living_cost, rent_of, salary
-from money_sim.engine import preview, resolve
+from money_sim.engine import ease_of, preview, resolve
+from money_sim.match import match_report
+from money_sim.snapshot import score_snapshot
 from money_sim.state import Plan, from_save_dict, new_game, public_view, to_save_dict
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -34,6 +36,12 @@ class Session:
         else:
             view["salary_full"] = salary(state.career, state.network, "full")
         view["salary_part"] = salary(state.career, state.network, "part")
+        view["salary_light"] = salary(state.career, state.network, "light")
+        position = ease_of(state)
+        view["ease_open"] = position["open"]
+        view["ease_projected"] = position["projected"]
+        view["ease_covered"] = position["covered"]
+        view["ease_months_left"] = position["months_left"]
         full_living = living_cost(state.lifestyle, state.price_index)
         view["living"] = full_living - rent_of(full_living) if state.home_value else full_living
         view["regime_label"] = REGIME_LABEL.get(state.regime, state.regime)
@@ -145,6 +153,19 @@ def make_server(host: str, port: int, log_path: Path, save_path: Path, seed: int
                 with session.lock:
                     self._json(200, session.payload())
                 return
+            if path == "/api/match":
+                query = parse_qs(urlparse(self.path).query)
+                left = query.get("left", ["steady"])[0]
+                right = query.get("right", ["coast"])[0]
+                with session.lock:
+                    player = [row.get("employment") for row in session.recent]
+                    try:
+                        body = match_report(session.state.seed, player, left, right)
+                    except ValueError as exc:
+                        self._json(400, {"error": str(exc)})
+                        return
+                    self._json(200, body)
+                return
             self._json(404, {"error": "没有这个接口"})
 
         def do_POST(self) -> None:
@@ -153,6 +174,14 @@ def make_server(host: str, port: int, log_path: Path, save_path: Path, seed: int
                 data = self._read()
             except json.JSONDecodeError:
                 self._json(400, {"error": "JSON 无法解析"})
+                return
+            if path == "/api/snapshot":
+                try:
+                    body = score_snapshot(data)
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(200, body)
                 return
             with session.lock:
                 if path == "/api/new":
