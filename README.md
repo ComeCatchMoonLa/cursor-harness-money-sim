@@ -30,7 +30,7 @@ python3 -m money_sim.sim --games 1000 --seed 1
 
 ## 实验边界
 
-这是 Cursor Harness 实验仓库：人定边界，Agent 连续做 V1 到 V3。权限和验收见 [`HARNESS.md`](./HARNESS.md)、[`ACCEPTANCE.md`](./ACCEPTANCE.md)。进度在 [`PROGRESS.md`](./PROGRESS.md)。不接真实账户。
+这是 Cursor Harness 实验仓库：人定边界，Agent 先连续做完 V1 到 V3。V3 不是停止点，之后按 [`HARNESS.md`](./HARNESS.md)「做到 V20」筛选，V20 是上限。权限和验收见 [`HARNESS.md`](./HARNESS.md)、[`ACCEPTANCE.md`](./ACCEPTANCE.md)。进度在 [`PROGRESS.md`](./PROGRESS.md)。不接真实账户。
 
 ## 给实现 Agent
 
