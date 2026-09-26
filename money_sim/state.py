@@ -26,19 +26,19 @@ from money_sim.constants import (
 
 
 def net_worth(state: "GameState") -> int:
-    """账面。副业按投入的本金计，用来和分录对账。"""
-    return state.cash + state.portfolio + state.business_book - state.debt
+    """账面。副业按投入的本金计，房子按市价计，用来和分录对账。"""
+    return state.cash + state.portfolio + state.business_book + state.home_value - state.mortgage - state.debt
 
 
 def realizable_net(state: "GameState") -> int:
-    """可兑现。店要按现在退出能拿到的折扣计，封闭的指数仍算你的。"""
-    from money_sim.economy import exit_pct
+    """可兑现。店和房子都按现在主动退出能拿到的折扣计，封闭的指数仍算你的。"""
+    from money_sim.economy import exit_pct, home_equity
 
     book = 0
     if state.business_stage != "none" and state.business_book > 0:
         pct = exit_pct(state.business_stage, state.last_business_net, 0, False)
         book = state.business_book * pct // 100
-    return state.cash + state.portfolio + book - state.debt
+    return state.cash + state.portfolio + book + home_equity(state.home_value, state.mortgage) - state.debt
 
 
 @dataclass
@@ -77,6 +77,13 @@ class GameState:
     career_fresh: int = START_CAREER_FRESH
     venture_fresh: int = START_VENTURE_FRESH
     invest_fresh: int = START_INVEST_FRESH
+    home_value: int = 0
+    mortgage: int = 0
+    mortgage_payment: int = 0
+    pending_offer: int = 0
+    offer_pay: int = 0
+    offer_left: int = 0
+    offer_gap: bool = False
     history: list[int] = field(default_factory=list)
     last_report: dict | None = None
 
@@ -116,6 +123,13 @@ class GameState:
             career_fresh=self.career_fresh,
             venture_fresh=self.venture_fresh,
             invest_fresh=self.invest_fresh,
+            home_value=self.home_value,
+            mortgage=self.mortgage,
+            mortgage_payment=self.mortgage_payment,
+            pending_offer=self.pending_offer,
+            offer_pay=self.offer_pay,
+            offer_left=self.offer_left,
+            offer_gap=self.offer_gap,
             history=list(self.history),
             last_report=self.last_report,
         )
@@ -138,6 +152,9 @@ class Plan:
     break_contract: bool = False
     lock_amount: int = 0
     unlock: bool = False
+    buy_home: bool = False
+    sell_home: bool = False
+    accept_job: bool = False
 
 
 def rng_of(state: GameState) -> random.Random:
@@ -205,6 +222,13 @@ def to_save_dict(state: GameState) -> dict:
         "career_fresh": state.career_fresh,
         "venture_fresh": state.venture_fresh,
         "invest_fresh": state.invest_fresh,
+        "home_value": state.home_value,
+        "mortgage": state.mortgage,
+        "mortgage_payment": state.mortgage_payment,
+        "pending_offer": state.pending_offer,
+        "offer_pay": state.offer_pay,
+        "offer_left": state.offer_left,
+        "offer_gap": state.offer_gap,
         "history": list(state.history),
         "last_report": state.last_report,
     }
@@ -247,10 +271,35 @@ def from_save_dict(data: dict) -> GameState:
         career_fresh=int(data.get("career_fresh", START_CAREER_FRESH)),
         venture_fresh=int(data.get("venture_fresh", START_VENTURE_FRESH)),
         invest_fresh=int(data.get("invest_fresh", START_INVEST_FRESH)),
+        home_value=int(data.get("home_value", 0)),
+        mortgage=int(data.get("mortgage", 0)),
+        mortgage_payment=int(data.get("mortgage_payment", 0)),
+        pending_offer=int(data.get("pending_offer", 0)),
+        offer_pay=int(data.get("offer_pay", 0)),
+        offer_left=int(data.get("offer_left", 0)),
+        offer_gap=bool(data.get("offer_gap", False)),
         history=[int(x) for x in data["history"]],
         last_report=data.get("last_report"),
     )
     return state
+
+
+def _housing_view(state: GameState) -> dict:
+    from money_sim.economy import down_and_loan, home_price, mortgage_payment
+
+    price = home_price(state.price_index)
+    down, loan = down_and_loan(price)
+    return {
+        "home_value": state.home_value,
+        "mortgage": state.mortgage,
+        "mortgage_payment": state.mortgage_payment,
+        "home_price": price,
+        "down_payment": down,
+        "next_payment": state.mortgage_payment if state.home_value else mortgage_payment(loan),
+        "pending_offer": state.pending_offer,
+        "offer_pay": state.offer_pay,
+        "offer_left": state.offer_left,
+    }
 
 
 def _rust_step(state: GameState) -> int:
@@ -313,6 +362,7 @@ def public_view(state: GameState) -> dict:
         "rust_step": _rust_step(state),
         "contract_rest": _contract_rest(state),
         "regime_risk": "指数、店和身体可能在同一个月一起挨打" if state.regime == "bear" else "",
+        **_housing_view(state),
         "goal": WIN_NET,
         "start_net": START_CASH + START_PORTFOLIO,
         "history": list(state.history),

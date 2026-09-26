@@ -61,6 +61,9 @@ function readPlan() {
     sign_months: Number(document.querySelector("#contract").value || 0),
     break_contract: document.querySelector("#break-contract").checked,
     unlock: document.querySelector("#unlock").checked,
+    buy_home: document.querySelector("#buy-home").checked,
+    sell_home: document.querySelector("#sell-home").checked,
+    accept_job: document.querySelector("#accept-job").checked,
   };
 }
 
@@ -94,6 +97,9 @@ function renderStatus() {
   setText("#exit-value", wan(state.exit_value));
   setText("#debt", wan(state.debt));
   setText("#living", wan(state.living));
+  setText("#housing", state.home_value
+    ? `自住 ${wan(state.home_value)} · 贷款 ${wan(state.mortgage)} · 月供 ${wan(state.mortgage_payment)}`
+    : `租房 · 房价 ${wan(state.home_price)} · 首付 ${wan(state.down_payment)}`);
   setText("#energy", `${state.energy}/100`);
   setText("#stress", `${state.stress}/100`);
   setText("#autonomy", `${state.autonomy}/100`);
@@ -113,13 +119,18 @@ function renderStatus() {
   full.textContent = `全职 · 工资 ${wan(state.salary_full)} · 占 3 个时间槽`;
   part.textContent = `兼职 · 工资 ${wan(state.salary_part)} · 占 2 个时间槽`;
   const offer = document.querySelector("#offer");
-  if (state.offer_exit_pct > 0) {
-    offer.hidden = false;
-    offer.textContent = `本月有人收购副业，按账面的 ${state.offer_exit_pct}%。可以接受，也可以留下。`;
-  } else {
-    offer.hidden = true;
-    offer.textContent = "";
+  const lines = [];
+  if (state.pending_offer) {
+    lines.push(`外部报价月薪 ${wan(state.pending_offer)}。接的话这个月没有工资，之后十二个月按这个数发。这份报价不加技能，学习仍然算。`);
   }
+  if (state.offer_left) {
+    lines.push(`外部工资月薪 ${wan(state.offer_pay)}，还剩 ${state.offer_left} 个月。`);
+  }
+  if (state.offer_exit_pct > 0) {
+    lines.push(`本月有人收购副业，按账面的 ${state.offer_exit_pct}%。可以接受，也可以留下。`);
+  }
+  offer.hidden = lines.length === 0;
+  offer.textContent = lines.join("");
   document.querySelector("#btn-resolve").disabled = state.status !== "playing";
   renderChart(history);
   renderLog();
@@ -239,6 +250,11 @@ function showPreview(payload) {
     quote.bonus ? `签约奖金 ${wan(quote.bonus)}` : "",
     quote.penalty ? `违约金 ${wan(quote.penalty)}` : "",
     quote.leave ? "这个月停薪请假" : "",
+    quote.down_payment ? `首付 ${wan(quote.down_payment)}` : "",
+    quote.mortgage_payment ? `月供 ${wan(quote.mortgage_payment)}` : "",
+    quote.home_maintenance ? `维修 ${wan(quote.home_maintenance)}` : "",
+    quote.home_sale_net ? `卖房结算 ${wan(quote.home_sale_net)}` : "",
+    quote.job_gap ? "这个月交接，没有工资" : "",
   ].filter(Boolean).join("，");
   box.textContent = `预计工资 ${wan(quote.salary)}，学费 ${wan(quote.tuition)}，建设 ${wan(quote.build_cost)}，生活费 ${wan(quote.living)}，行动后精力 ${quote.energy_after}。${extra ? extra + "。" : ""}${warnings}`;
 }
@@ -295,7 +311,7 @@ function resetForm() {
   ["#to-index", "#from-index", "#to-business", "#debt-pay", "#risk", "#consume", "#lock-amount"].forEach((selector) => {
     document.querySelector(selector).value = "0";
   });
-  ["#automate", "#exit", "#accept", "#break-contract", "#unlock"].forEach((selector) => {
+  ["#automate", "#exit", "#accept", "#break-contract", "#unlock", "#buy-home", "#sell-home", "#accept-job"].forEach((selector) => {
     document.querySelector(selector).checked = false;
   });
   ensureSlots();
@@ -305,7 +321,7 @@ document.querySelector("#employment").addEventListener("change", () => {
   ensureSlots();
   schedulePreview();
 });
-["#to-index", "#from-index", "#to-business", "#debt-pay", "#risk", "#consume", "#lock-amount", "#contract", "#automate", "#exit", "#accept", "#break-contract", "#unlock"].forEach((selector) => {
+["#to-index", "#from-index", "#to-business", "#debt-pay", "#risk", "#consume", "#lock-amount", "#contract", "#automate", "#exit", "#accept", "#break-contract", "#unlock", "#buy-home", "#sell-home", "#accept-job"].forEach((selector) => {
   document.querySelector(selector).addEventListener("input", schedulePreview);
   document.querySelector(selector).addEventListener("change", schedulePreview);
 });

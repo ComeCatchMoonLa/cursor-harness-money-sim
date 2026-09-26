@@ -17,7 +17,7 @@ def rest_plan() -> Plan:
 
 
 def assert_identity(before, after, report) -> None:
-    sums = {"cash": 0, "portfolio": 0, "book": 0, "debt": 0}
+    sums = {"cash": 0, "portfolio": 0, "book": 0, "debt": 0, "home": 0, "mortgage": 0}
     for row in report["ledger"]:
         sums[row["account"]] += row["amount"]
     if after.cash - before.cash != sums["cash"]:
@@ -28,7 +28,11 @@ def assert_identity(before, after, report) -> None:
         raise AssertionError((after.business_book, before.business_book, sums))
     if after.debt - before.debt != sums["debt"]:
         raise AssertionError((after.debt, before.debt, sums))
-    delta = sums["cash"] + sums["portfolio"] + sums["book"] - sums["debt"]
+    if after.home_value - before.home_value != sums["home"]:
+        raise AssertionError((after.home_value, before.home_value, sums))
+    if after.mortgage - before.mortgage != sums["mortgage"]:
+        raise AssertionError((after.mortgage, before.mortgage, sums))
+    delta = sums["cash"] + sums["portfolio"] + sums["book"] + sums["home"] - sums["debt"] - sums["mortgage"]
     if net_worth(after) - net_worth(before) != delta:
         raise AssertionError((net_worth(after), net_worth(before), delta))
     for key in LOG_FIELDS:
