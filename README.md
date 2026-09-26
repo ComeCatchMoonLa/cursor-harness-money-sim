@@ -34,6 +34,6 @@ python3 -m money_sim.sim --games 1000 --seed 1
 
 ## 给实现 Agent
 
-先读 [`HARNESS.md`](./HARNESS.md) 和 [`ACCEPTANCE.md`](./ACCEPTANCE.md)。`HARNESS.md` 里「做到 V20」是必读：大版本收工并审核通过之后再筛下一版，不要在本版分析完就停。可以 commit，并向本仓功能分支 push、更新 PR。禁止 force-push，禁止 push `main`，禁止自行合并，禁止接真实账户。
+先读 [`HARNESS.md`](./HARNESS.md) 和 [`ACCEPTANCE.md`](./ACCEPTANCE.md)。`HARNESS.md` 里「做到 V20」是必读：V20 是上限。一版收工并审核通过之后立刻按四问筛下一版；筛过了就开工，筛不过就把原因写进候选池然后停。不要为了凑版数发明需求。可以 commit，并向本仓功能分支 push、更新 PR。禁止 force-push，禁止 push `main`，禁止自行合并，禁止接真实账户。
 
 参考知识在 `references/`。标本只许学结构，禁止整仓复制。
