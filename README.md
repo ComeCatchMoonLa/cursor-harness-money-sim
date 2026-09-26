@@ -12,7 +12,7 @@ Cursor Harness 小实验仓库：测「人只定边界 + 目标，Agent 自主�
 - [`HARNESS.md`](./HARNESS.md) — 权限、安全边界、工作方式（**只在本仓写代码；可 push 功能分支并开/更新 PR；禁 force-push、push `main`、自行合并、其他仓、CardRPG、真金账户**）。
 - [`ACCEPTANCE.md`](./ACCEPTANCE.md) — 产品定位与验收标准（小型模拟游戏体量 / V1 可独立游玩 / 收工 DoD / 非 Demo 硬标准 / 能测 / 批量模拟三指标 / 自主洞察 / 反 Goodhart）。
 
-每版开工前把版本命题拆成小目标。每个小目标按调研 → 短设计（含 3～5 条验收用例）→ 实现 → 测试 → 自评审 → 小步 commit 做，禁止没写设计要点就大面积写代码，也禁止先写长篇设计再开工。质量手段不可省（全量回归、改经济必跑模拟、UI 与引擎同一状态、缺陷台账、收工检查表、PR 带证据、`docs/dev/FEATURES.json` 的 passes 纪律）。脚手架护栏：`python3 -m unittest tests/test_features_floor.py`。定栈后把格式或 lint、游戏测试和这条护栏一起写进 README。收工前须同时满足 Definition of Done（可玩路径通、相关测试绿、版本命题已写入、自 review 过 ACCEPTANCE、有手玩记录）；缺一项继续本版，不进下一版。小步可以 commit，并可以 push 本仓功能分支、更新 PR；未达 DoD 时 PR 标明未完成，不要自行合并，也不要 push `main`。进度写进 [`PROGRESS.md`](./PROGRESS.md)（含版本命题、小目标、决策密度、手玩记录、版级自 review，以及 What I learned / failed / changed / Why；四行要能看出设计或测试反馈改了什么）。
+每版开工前把版本命题拆成小目标。每个小目标按调研 → 短设计（含 3～5 条验收用例）→ 实现 → 测试 → 自评审 → 小步 commit 做，禁止没写设计要点就大面积写代码，也禁止先写长篇设计再开工。质量手段不可省（全量回归、改经济必跑模拟、UI 与引擎同一状态、缺陷台账、收工检查表、PR 带证据、`docs/dev/FEATURES.json` 的 passes 纪律）。脚手架护栏：`python3 -m unittest tests/test_features_floor.py`。定栈后把格式或 lint、游戏测试和这条护栏一起写进 README。收工前须同时满足 Definition of Done（可玩路径通、相关测试绿、版本命题已写入、自 review 过 ACCEPTANCE、有手玩记录）；缺一项继续本版，不进下一版。小步自评审之后就 commit，并 push 本仓功能分支、更新 PR；未达 DoD 时 PR 标明未完成。某一版标完成前，要有另一个会话的交叉审核（见 `HARNESS.md`「PR 审核」）。不要自行合并，也不要 push `main`。进度写进 [`PROGRESS.md`](./PROGRESS.md)（含版本命题、小目标、决策密度、手玩记录、版级自 review，以及 What I learned / failed / changed / Why；四行要能看出设计或测试反馈改了什么）。
 
 ## 参考知识（卡住再读，非必读作业）
 
