@@ -78,6 +78,16 @@ class EaseRuleTests(unittest.TestCase):
         self.assertTrue(opened["open"])
         self.assertNotEqual(closed["projected"], opened["projected"])
 
+    def test_fewer_than_six_months_left_stays_closed(self):
+        late = ease_position(1_450_000, 104, 60, 4, 13_200)
+        still = ease_position(1_450_000, 103, 60, 4, 13_200)
+        self.assertGreaterEqual(late["projected_full"], 1_500_000)
+        self.assertGreater(late["monthly_save"], 0)
+        self.assertEqual(late["months_left"], 5)
+        self.assertFalse(late["open"])
+        self.assertEqual(still["months_left"], 6)
+        self.assertTrue(still["open"])
+
     def test_early_career_growth_does_not_open_the_position(self):
         early = ease_position(800_000, 8, 48, 4, 13_200)
         self.assertFalse(early["open"])
@@ -121,15 +131,23 @@ class EasePolicyTests(unittest.TestCase):
         healthy.autonomy = 70
         self.assertNotEqual(policy_ease(healthy).employment, "light")
 
-    def test_the_month_after_light_work_is_not_the_same_plan(self):
+    def test_contract_rejects_light_and_light_cannot_sign(self):
+        bound = _ahead()
+        bound.contract_left = 2
+        self.assertIn("合同没到期", validate(bound, Plan("light", ["rest", "rest"])))
+        free = _ahead()
+        errors = validate(free, Plan("light", ["rest", "rest"], sign_months=6))
+        self.assertTrue(any("不能再签" in item for item in errors))
+
+    def test_the_month_after_light_work_is_not_steady(self):
         state = _ahead()
         first = policy_ease(state)
         self.assertEqual(first.employment, "light")
         state, errors, _ = resolve(state, first)
         self.assertEqual(errors, [])
-        second = policy_ease(state)
         self.assertGreater(state.autonomy, 50)
-        self.assertTrue(first.employment != second.employment or first.slots != second.slots or state.condition != 50)
+        self.assertEqual(policy_ease(state).employment, "light")
+        self.assertEqual(policy_steady(state).employment, "full")
 
 
 if __name__ == "__main__":
