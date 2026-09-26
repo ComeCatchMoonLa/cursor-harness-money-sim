@@ -225,6 +225,53 @@ def _nearest(row: dict, kept: list[dict]) -> tuple[dict, list[str]]:
     return nearest, gaps
 
 
+# 写进路线表的先后。留出种子上重判时，后写的要和每一条已经留下的都差够两个轴。
+KEPT_ORDER = ("steady", "grind", "yolo", "owner", "nest", "ease", "coast")
+
+# V7 起种子 1 上停住的主力达成率。再压低、又没有新的分叉，常数一档不留。
+PLATEAU_WIN = {"steady": 0.611, "nest": 0.645}
+
+
+def rank_key(row: dict) -> tuple:
+    """达成率高的在前。相同则达标更早的在前。没有赢局的排在有赢局的后面。"""
+    month = row.get("median_win_month")
+    return (-row["win_rate"], month is None, month if month is not None else 0, row["name"])
+
+
+def rank_names(rows: list[dict]) -> list[str]:
+    return [row["name"] for row in sorted(rows, key=rank_key)]
+
+
+def retain_routes(rows: list[dict], order: tuple[str, ...] = KEPT_ORDER) -> tuple[list[dict], list[dict]]:
+    """按写表先后重判。差不够两个轴的，并进已留下里轴最少的那条；轴数相同就并进更早的。"""
+    by_name = {row["name"]: row for row in rows}
+    kept: list[dict] = []
+    merged: list[dict] = []
+    for name in order:
+        row = by_name.get(name)
+        if row is None:
+            continue
+        if kept and not all(different(row, other) for other in kept):
+            nearest, gaps = _nearest(row, kept)
+            merged.append({"name": name, "into": nearest["name"], "gaps": gaps})
+            continue
+        kept.append(row)
+    return kept, merged
+
+
+def ship_notches(old_holdout: list[dict], new_holdout: list[dict], seed1_notched: list[dict]) -> bool:
+    """一档留在游戏里，只有留出种子上留下的名单变了，并且种子 1 的主力达成率没有掉下 V7 的平台。"""
+    old_names = [row["name"] for row in retain_routes(old_holdout)[0]]
+    new_names = [row["name"] for row in retain_routes(new_holdout)[0]]
+    if old_names == new_names:
+        return False
+    by_name = {row["name"]: row for row in seed1_notched}
+    for name, floor in PLATEAU_WIN.items():
+        if by_name[name]["win_rate"] < floor:
+            return False
+    return True
+
+
 def starting_policies():
     return tuple(POLICIES) + tuple(PROMOTED)
 
