@@ -1,0 +1,76 @@
+{
+  "games": 1000,
+  "seed": 1,
+  "routes": [
+    {
+      "name": "steady",
+      "title": "一直上班",
+      "win_rate": 0.611,
+      "median_win_month": 81,
+      "hard_fail_rate": 0.0,
+      "mean_intensity": 0.8872721479965718,
+      "mean_autonomy": 69.4202892204487,
+      "mainline": "前 36 个月多半是全职，37 到 72 月多半是全职，73 月以后多半是全职。变招：前 36 个月还有 9% 是不拿固定工资；37 到 72 月还有 10% 是不拿固定工资；73 月以后还有 10% 是不拿固定工资。"
+    },
+    {
+      "name": "grind",
+      "title": "只上班不保养",
+      "win_rate": 0.025,
+      "median_win_month": 58,
+      "hard_fail_rate": 0.034,
+      "mean_intensity": 0.750696145930596,
+      "mean_autonomy": 63.21421421540002,
+      "mainline": "前 36 个月多半是全职，37 到 72 月多半是全职，73 月以后多半是全职。变招：前 36 个月还有 19% 是不拿固定工资；37 到 72 月还有 25% 是不拿固定工资；73 月以后还有 28% 是不拿固定工资。"
+    },
+    {
+      "name": "yolo",
+      "title": "辞职压进店",
+      "win_rate": 0.0,
+      "median_win_month": null,
+      "hard_fail_rate": 1.0,
+      "mean_intensity": 0.0,
+      "mean_autonomy": 86.06117141930332,
+      "mainline": "前 36 个月多半是不拿固定工资。变招很少。"
+    },
+    {
+      "name": "owner",
+      "title": "把店做起来",
+      "win_rate": 0.063,
+      "median_win_month": 92,
+      "hard_fail_rate": 0.0,
+      "mean_intensity": 0.7850560466783902,
+      "mean_autonomy": 93.01440228599674,
+      "mainline": "前 36 个月多半是全职，37 到 72 月多半是兼职，73 月以后多半是全职。变招：前 36 个月还有 47% 是兼职；37 到 72 月还有 45% 是全职；73 月以后还有 33% 是兼职。"
+    },
+    {
+      "name": "nest",
+      "title": "先买自住",
+      "win_rate": 0.645,
+      "median_win_month": 90,
+      "hard_fail_rate": 0.0,
+      "mean_intensity": 0.8836968523214959,
+      "mean_autonomy": 71.24161030000629,
+      "mainline": "前 36 个月多半是全职，37 到 72 月多半是全职，73 月以后多半是全职。变招：前 36 个月还有 9% 是不拿固定工资；37 到 72 月还有 10% 是不拿固定工资；73 月以后还有 10% 是不拿固定工资。"
+    },
+    {
+      "name": "ease",
+      "title": "到位置就轻职",
+      "win_rate": 0.561,
+      "median_win_month": 83,
+      "hard_fail_rate": 0.0,
+      "mean_intensity": 0.8508844371481434,
+      "mean_autonomy": 72.97137226633896,
+      "mainline": "前 36 个月多半是全职，37 到 72 月多半是全职，73 月以后多半是全职。变招：前 36 个月还有 9% 是不拿固定工资；37 到 72 月还有 14% 是轻职；73 月以后还有 14% 是轻职。"
+    },
+    {
+      "name": "coast",
+      "title": "盖住之后停薪",
+      "win_rate": 0.488,
+      "median_win_month": 92.0,
+      "hard_fail_rate": 0.0,
+      "mean_intensity": 0.8121964903145669,
+      "mean_autonomy": 73.3771328284169,
+      "mainline": "前 36 个月多半是全职，37 到 72 月多半是全职，73 月以后多半是全职。变招：前 36 个月还有 9% 是不拿固定工资；37 到 72 月还有 15% 是不拿固定工资；73 月以后还有 12% 是不拿固定工资。"
+    }
+  ]
+}

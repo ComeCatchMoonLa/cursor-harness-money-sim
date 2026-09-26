@@ -126,7 +126,7 @@ function renderStatus() {
   part.textContent = `兼职 · 工资 ${wan(state.salary_part)} · 占 2 个时间槽`;
   setText("#ease-label", state.ease_open
     ? (state.ease_covered
-      ? `少工作可以选 · 按轻职储蓄大约到 ${wan(state.ease_projected)}`
+      ? `少工作可以选 · 按轻职储蓄大约到 ${wan(state.ease_projected)}，也可以不拿工资`
       : `少工作可以选 · 按轻职储蓄大约到 ${wan(state.ease_projected)}，还差一截`)
     : "少工作还不行");
   const offer = document.querySelector("#offer");
@@ -314,7 +314,40 @@ async function resolveMonth() {
   }
 }
 
+async function loadRoutes() {
+  const panel = document.querySelector("#routes-panel");
+  try {
+    const response = await fetch("/static/routes.json");
+    if (!response.ok) {
+      return;
+    }
+    const data = await response.json();
+    document.querySelector("#routes-note").textContent = `种子 ${data.seed}，每种 ${data.games} 局。工作强度和时间自主看第 37 到 72 月。至少两个轴分开才留下。这里不替你选这个月的方案。`;
+    const list = document.querySelector("#routes");
+    list.replaceChildren();
+    for (const route of data.routes) {
+      const item = document.createElement("article");
+      item.className = "route";
+      item.dataset.testid = `route-${route.name}`;
+      const title = document.createElement("h3");
+      title.textContent = route.title;
+      const axes = document.createElement("p");
+      axes.className = "axes";
+      const month = route.median_win_month == null ? "没有赢的局" : `中位第 ${Math.round(route.median_win_month)} 月`;
+      axes.textContent = `达成 ${(route.win_rate * 100).toFixed(1)}% · ${month} · 硬失败 ${(route.hard_fail_rate * 100).toFixed(1)}% · 强度 ${Number(route.mean_intensity).toFixed(2)} · 自主 ${Number(route.mean_autonomy).toFixed(1)}`;
+      const line = document.createElement("p");
+      line.textContent = route.mainline;
+      item.append(title, axes, line);
+      list.append(item);
+    }
+    panel.hidden = false;
+  } catch (_error) {
+    panel.hidden = true;
+  }
+}
+
 async function boot() {
+  await loadRoutes();
   state = await api("/api/state");
   resetForm();
   renderStatus();

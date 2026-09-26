@@ -6,7 +6,7 @@ import argparse
 import statistics
 from collections import Counter
 
-from money_sim.constants import CONDITION_LOW, MONTHS
+from money_sim.constants import CONDITION_LOW, MONTHS, WORK_SLOTS
 from money_sim.engine import resolve
 from money_sim.policies import POLICIES, ensure_plan
 from money_sim.state import Plan, net_worth, new_game, realizable_net
@@ -54,6 +54,12 @@ def play_once(policy, seed: int) -> dict:
     lifestyle_peak = state.lifestyle
     condition_sum = 0
     low_condition = 0
+    autonomy_sum = 0
+    intensity_sum = 0.0
+    mid_months = 0
+    mid_autonomy = 0
+    mid_intensity = 0.0
+    phase_employ = {"early": Counter(), "mid": Counter(), "late": Counter()}
     while state.status == "playing":
         plan = ensure_plan(state, policy(state))
         signature = plan_signature(plan)
@@ -73,6 +79,17 @@ def play_once(policy, seed: int) -> dict:
         lifestyle_peak = max(lifestyle_peak, state.lifestyle)
         condition_sum += state.condition
         low_condition += int(state.condition < CONDITION_LOW)
+        autonomy_sum += state.autonomy
+        intensity_sum += WORK_SLOTS[plan.employment] / 3
+        if month <= 36:
+            phase_employ["early"][plan.employment] += 1
+        elif month <= 72:
+            phase_employ["mid"][plan.employment] += 1
+            mid_months += 1
+            mid_autonomy += state.autonomy
+            mid_intensity += WORK_SLOTS[plan.employment] / 3
+        else:
+            phase_employ["late"][plan.employment] += 1
         if previous is not None:
             changed = signature != previous
             if month <= 24:
@@ -126,7 +143,34 @@ def play_once(policy, seed: int) -> dict:
         "light_rate": slot_counter["light"] / max(1, state.month - 1),
         "end_month": state.month - 1,
         "slots": slot_counter,
+        "mean_autonomy": autonomy_sum / max(1, state.month - 1),
+        "mean_intensity": intensity_sum / max(1, state.month - 1),
+        # 没活到中段的局，用它实际活过的月份，避免把早破产记成自主为 0。
+        "glide_autonomy": (mid_autonomy / mid_months) if mid_months else autonomy_sum / max(1, state.month - 1),
+        "glide_intensity": (mid_intensity / mid_months) if mid_months else intensity_sum / max(1, state.month - 1),
+        "win_month": (state.month - 1) if state.status == "won" else None,
+        "phase_employ": {band: dict(counts) for band, counts in phase_employ.items()},
     }
+
+
+def phase_mainline(rows: list[dict]) -> dict:
+    """每一段里出现最多的就业，以及次常见的那档占了多少。"""
+    pooled = {"early": Counter(), "mid": Counter(), "late": Counter()}
+    for row in rows:
+        for band, counts in row.get("phase_employ", {}).items():
+            pooled[band].update(counts)
+    lines = {}
+    for band, counts in pooled.items():
+        if not counts:
+            continue
+        ranked = counts.most_common()
+        total = sum(counts.values())
+        employment, top = ranked[0]
+        second = None
+        if len(ranked) > 1:
+            second = {"employment": ranked[1][0], "share": ranked[1][1] / total}
+        lines[band] = {"employment": employment, "share": top / total, "second": second}
+    return lines
 
 
 def summarize(name: str, rows: list[dict]) -> dict:
@@ -142,6 +186,7 @@ def summarize(name: str, rows: list[dict]) -> dict:
     end_months = [row["end_month"] for row in rows]
     early_learn_rates = [row["early_learn_rate"] for row in rows]
     late_learn_rows = [row["late_learn_rate"] for row in rows if row["end_month"] >= 60]
+    win_months = [row["win_month"] for row in rows if row.get("win_month")]
     return {
         "name": name,
         "games": len(rows),
@@ -174,6 +219,12 @@ def summarize(name: str, rows: list[dict]) -> dict:
         "median_end_month": statistics.median(end_months),
         "suspect_jump_games": sum(row["max_jump"] > 0.55 for row in rows),
         "suspect_wealth_games": sum(row["max_worth"] > 6_000_000 for row in rows),
+        "mean_autonomy": statistics.fmean(row["mean_autonomy"] for row in rows),
+        "mean_intensity": statistics.fmean(row["mean_intensity"] for row in rows),
+        "glide_autonomy": statistics.fmean(row["glide_autonomy"] for row in rows),
+        "glide_intensity": statistics.fmean(row["glide_intensity"] for row in rows),
+        "median_win_month": statistics.median(win_months) if win_months else None,
+        "mainline": phase_mainline(rows),
     }
 
 
@@ -250,7 +301,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--out", default="")
     args = parser.parse_args(argv)
-    report = run_batch(args.games, args.seed)
+    from money_sim.routes import starting_policies
+
+    report = run_batch(args.games, args.seed, starting_policies())
     text = format_report(report)
     print(text)
     if args.out:

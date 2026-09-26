@@ -133,6 +133,16 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 #log li { font-size: 0.88rem; }
 
 #chart { width: 100%; height: 120px; background: #f7f1e7; border-radius: 8px; margin-bottom: 12px; }
+
+.route-list { display: grid; gap: 8px; margin-top: 10px; }
+.route {
+  padding: 10px 12px;
+  background: #f7f1e7;
+  border-radius: 8px;
+}
+.route h3 { margin: 0 0 4px; font-size: 1rem; }
+.route .axes { color: #6d6458; font-size: 0.88rem; }
+#routes-panel { margin: 16px 0; }
 .rules { margin: 0; padding-left: 1.1rem; }
 
 @media (max-width: 860px) {
