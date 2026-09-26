@@ -49,6 +49,31 @@
     </div>
   </section>
 
+  <section class="panel" id="snapshot-panel" data-testid="snapshot-panel">
+    <h2>从这一月往后</h2>
+    <p id="snapshot-note" class="note">填的是中途存档，不改第 1 月、72 万那一局。工资、指数和生活费用游戏里的数。没填的景气按平淡，没有店。封闭还有金额时，按 12 个月不能卖。精力按开局，很晚的存档会像刚休息过。不把达成率最高的标成最优，也不填这一月的方案。</p>
+    <div class="money-grid">
+      <label>月份<input id="snap-month" data-testid="snap-month" type="number" min="1" max="108" step="1"></label>
+      <label>现金（元）<input id="snap-cash" data-testid="snap-cash" type="number" min="0" step="1"></label>
+      <label>指数（元）<input id="snap-portfolio" data-testid="snap-portfolio" type="number" min="0" step="1"></label>
+      <label>封闭（元）<input id="snap-locked" data-testid="snap-locked" type="number" min="0" step="1"></label>
+      <label>负债（元）<input id="snap-debt" data-testid="snap-debt" type="number" min="0" step="1"></label>
+      <label>房子市价（元）<input id="snap-home" data-testid="snap-home" type="number" min="0" step="1"></label>
+      <label>贷款（元）<input id="snap-mortgage" data-testid="snap-mortgage" type="number" min="0" step="1"></label>
+      <label>职业<input id="snap-career" data-testid="snap-career" type="number" min="0" max="100" step="1"></label>
+      <label>经营<input id="snap-venture" data-testid="snap-venture" type="number" min="0" max="100" step="1"></label>
+      <label>投资<input id="snap-invest" data-testid="snap-invest" type="number" min="0" max="100" step="1"></label>
+      <label>状态<input id="snap-condition" data-testid="snap-condition" type="number" min="0" max="100" step="1"></label>
+      <label>合同还剩<input id="snap-contract" data-testid="snap-contract" type="number" min="0" max="12" step="1"></label>
+      <label>物价<input id="snap-price" data-testid="snap-price" type="number" min="1" max="10000" step="1"></label>
+    </div>
+    <div class="actions">
+      <button id="btn-snapshot" data-testid="btn-snapshot" type="button">从这一月打分</button>
+    </div>
+    <p id="snapshot-result" data-testid="snapshot-result" class="note"></p>
+    <div id="snapshot-routes" data-testid="snapshot-routes" class="route-list"></div>
+  </section>
+
   <main class="layout">
     <section class="panel" aria-label="家底">
       <h2>家底</h2>

@@ -13,6 +13,7 @@ from money_sim.constants import LOG_FIELDS, REGIME_LABEL
 from money_sim.economy import exit_pct, living_cost, rent_of, salary
 from money_sim.engine import ease_of, preview, resolve
 from money_sim.match import match_report
+from money_sim.snapshot import score_snapshot
 from money_sim.state import Plan, from_save_dict, new_game, public_view, to_save_dict
 
 WEB = Path(__file__).resolve().parent.parent / "web"
@@ -173,6 +174,14 @@ def make_server(host: str, port: int, log_path: Path, save_path: Path, seed: int
                 data = self._read()
             except json.JSONDecodeError:
                 self._json(400, {"error": "JSON 无法解析"})
+                return
+            if path == "/api/snapshot":
+                try:
+                    body = score_snapshot(data)
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(200, body)
                 return
             with session.lock:
                 if path == "/api/new":

@@ -450,6 +450,87 @@ async function loadRoutes() {
   }
 }
 
+function readSnapshot() {
+  const read = (id) => Number(document.querySelector(id).value);
+  return {
+    month: read("#snap-month"),
+    cash: read("#snap-cash"),
+    portfolio: read("#snap-portfolio"),
+    locked: read("#snap-locked"),
+    debt: read("#snap-debt"),
+    home_value: read("#snap-home"),
+    mortgage: read("#snap-mortgage"),
+    career: read("#snap-career"),
+    venture: read("#snap-venture"),
+    invest: read("#snap-invest"),
+    condition: read("#snap-condition"),
+    contract_left: read("#snap-contract"),
+    price_index: read("#snap-price"),
+  };
+}
+
+function axisLine(route) {
+  const month = route.median_win_month == null ? "没有赢的局" : `中位第 ${Math.round(route.median_win_month)} 月`;
+  return `达成 ${(route.win_rate * 100).toFixed(1)}% · ${month} · 硬失败 ${(route.hard_fail_rate * 100).toFixed(1)}% · 强度 ${Number(route.mean_intensity).toFixed(2)} · 自主 ${Number(route.mean_autonomy).toFixed(1)}`;
+}
+
+function forwardCard(route, variant) {
+  const item = document.createElement("article");
+  item.className = variant ? "route variant" : "route";
+  item.dataset.testid = variant ? `snap-variant-${route.name}` : `snap-route-${route.name}`;
+  const title = document.createElement(variant ? "h4" : "h3");
+  title.textContent = route.title;
+  const axes = document.createElement("p");
+  axes.className = "axes";
+  axes.textContent = axisLine(route);
+  const details = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = "从这一月起的主线和变招";
+  const line = document.createElement("p");
+  line.textContent = route.mainline;
+  details.append(summary, line);
+  item.append(title, axes, details);
+  if (!variant && route.variants && route.variants.length) {
+    const block = document.createElement("div");
+    block.className = "route-variants";
+    for (const child of route.variants) {
+      block.append(forwardCard(child, true));
+    }
+    details.append(block);
+  }
+  return item;
+}
+
+function renderSnapshot(data) {
+  const result = document.querySelector("#snapshot-result");
+  const list = document.querySelector("#snapshot-routes");
+  list.replaceChildren();
+  const notes = data.notes || [];
+  result.textContent = [data.message, ...notes].filter(Boolean).join("");
+  if (!data.scored) {
+    return;
+  }
+  for (const route of data.routes) {
+    list.append(forwardCard(route, false));
+  }
+}
+
+async function scoreSnapshot() {
+  const button = document.querySelector("#btn-snapshot");
+  const result = document.querySelector("#snapshot-result");
+  button.disabled = true;
+  result.textContent = "正在打分。每种路线 200 局。";
+  try {
+    const data = await api("/api/snapshot", readSnapshot());
+    renderSnapshot(data);
+  } catch (error) {
+    result.textContent = error.message;
+    document.querySelector("#snapshot-routes").replaceChildren();
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function boot() {
   await loadRoutes();
   state = await api("/api/state");
@@ -479,6 +560,7 @@ document.querySelector("#employment").addEventListener("change", () => {
   document.querySelector(selector).addEventListener("change", schedulePreview);
 });
 document.querySelector("#btn-resolve").addEventListener("click", resolveMonth);
+document.querySelector("#btn-snapshot").addEventListener("click", scoreSnapshot);
 document.querySelector("#match-left").addEventListener("change", refreshMatch);
 document.querySelector("#match-right").addEventListener("change", refreshMatch);
 document.querySelector("#btn-new").addEventListener("click", async () => {

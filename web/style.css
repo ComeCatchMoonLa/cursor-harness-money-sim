@@ -140,8 +140,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: #f7f1e7;
   border-radius: 8px;
 }
-.route h3 { margin: 0 0 4px; font-size: 1rem; }
+.route h3, .route h4 { margin: 0 0 4px; font-size: 1rem; }
+.route h4 { font-size: 0.95rem; }
 .route .axes { color: #6d6458; font-size: 0.88rem; }
+.route details { margin-top: 6px; }
+.route-variants { margin-top: 8px; display: grid; gap: 8px; }
 #routes-panel { margin: 16px 0; }
 .match-picks { display: flex; gap: 16px; margin-top: 12px; }
 .match-picks select { margin-left: 6px; }
