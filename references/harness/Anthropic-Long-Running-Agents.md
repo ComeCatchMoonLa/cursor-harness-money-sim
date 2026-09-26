@@ -1,0 +1,21 @@
+# Effective harnesses for long-running agents（公开要点摘录 / 我的短笔记）
+
+> 来源：Anthropic · Effective harnesses for long-running agents
+> https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
+> 说明：中文摘录与个人笔记，非原文照搬。
+
+## 核心观点
+
+长程（跨很多步、可能跨会话）的 Agent，最大风险是**上下文丢失**和**中途漂移**。有效的做法：
+
+- **进度文件（progress file）**：把「已完成 / 当前状态 / 下一步 / 踩过的坑」持久化到磁盘，让后续会话能接着干，而不是每次从零理解。本仓对应 `PROGRESS.md`。
+- **增量推进**：一次只推进一小步并留下**干净、可继续的状态**（能跑、能测），而不是憋一个大改动。
+- **少打断人类**：Agent 应尽量自主完成「做 → 验 → 改」，只在真正越权 / 卡死时才求助。
+- **明确的完成判据**：让 Agent 知道「什么时候算这一轮做完了」，避免无限打磨或提前收工。
+
+## 对本实验的启发
+
+1. `PROGRESS.md` 每轮四行（What I learned / failed / changed / Why）就是「留给下一轮的干净状态」，尤其要写清「上一轮模拟 → 本轮改了什么设计」。
+2. V1→V2→V3 之间**不设人工验收门**，正是「少打断人类、自主增量推进」的实践。
+3. 每轮结束都要「能跑 + 能测 + commit」，保证状态可继续、可回溯。
+4. 早停规则（两轮还不能批量模拟就停）= 明确的失败判据，避免空烧额度。
