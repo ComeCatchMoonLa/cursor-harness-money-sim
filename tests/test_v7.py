@@ -108,6 +108,16 @@ class ConditionRuleTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(report["salary"], salary(40, 4, "full"))
 
+    def test_edges_match_the_bands(self):
+        at_ease, errors, _ = resolve(_open(74), Plan("full", ["consume"], consume_cash=MIN_CONSUME))
+        self.assertEqual(errors, [])
+        self.assertEqual(at_ease.condition, 69)
+        at_hold, errors, _ = resolve(_open(58), Plan("full", ["consume"], consume_cash=MIN_CONSUME))
+        self.assertEqual(errors, [])
+        self.assertEqual(at_hold.condition, 55)
+        self.assertEqual(validate(_open(40), Plan("full", ["rest"])), [])
+        self.assertEqual(validate(_open(39), Plan("part", ["rest", "rest"])), [])
+
     def test_old_save_without_condition_loads(self):
         data = to_save_dict(new_game(1))
         del data["condition"]
