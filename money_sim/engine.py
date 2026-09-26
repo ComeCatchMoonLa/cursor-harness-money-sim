@@ -32,6 +32,15 @@ from money_sim.constants import (
     REGIME_SWITCH_P,
     STRESS_BLOCK_REGEN,
     TOTAL_SLOTS,
+    FRESH_LEARN_EARLY,
+    FRESH_LEARN_LATE,
+    FRESH_PRACTICE,
+    LATE_FRESH_MONTH,
+    SHOCK_BOOK_PCT,
+    SHOCK_INDEX_PCT,
+    SHOCK_MEDICAL,
+    SHOCK_MEDICAL_STRESS,
+    SHOCK_P,
     TRIAL_DEMAND_NUM,
     TRIAL_MONTHS,
     TUITION,
@@ -53,12 +62,14 @@ from money_sim.economy import (
     consume_lifestyle_gain,
     consume_network_gain,
     consume_stress_relief,
+    contract_rest_gain,
     demand_bp,
     exit_pct,
     index_distribution,
     learn_gain,
     living_cost,
     risk_distribution,
+    rust_step,
     salary,
 )
 from money_sim.state import GameState, Plan, net_worth, realizable_net, rng_of, store_rng
@@ -141,12 +152,13 @@ def quote(state: GameState, plan: Plan) -> dict:
     cash_after = state.cash + pay + bonus + proceeds - penalty - tuition - build_cost - plan.consume_cash
     cash_after -= plan.to_index + plan.to_business + plan.debt_pay
     cash_after += sell_proceeds
+    rest_gain = contract_rest_gain(state.autonomy)
     energy_after = state.energy + WORK_ENERGY[employment]
     for slot in plan.slots:
         gain = SLOT_ENERGY[slot]
-        # 合同月不能真正下班，休息只能勉强维持。
+        # 合同月不能真正下班。回多少看这个月开始时的时间自主。
         if slot == "rest" and bound["contracted_pay"]:
-            gain = min(gain, 10)
+            gain = rest_gain
         energy_after += gain
     return {
         "salary": pay,
@@ -172,6 +184,8 @@ def quote(state: GameState, plan: Plan) -> dict:
         "learn_slots": learn_slots,
         "consume_slots": consume_slots,
         "exiting": exiting,
+        "contract_rest": rest_gain,
+        "rust_step": rust_step(state.month, state.autonomy),
     }
 
 
@@ -279,8 +293,13 @@ def preview(state: GameState, plan: Plan) -> dict:
         warnings.append("精力会透支。连续三个月透支会过劳，本局失败。")
     if quoted["cash_after_choices"] - quoted["living"] < 0:
         warnings.append("生活费可能让现金为负，并迫使你卖出资产或借债。")
-    if state.regime == "bear" and plan.risk_pct > 0:
-        warnings.append("收缩期的风险仓更容易大跌。")
+    if state.regime == "bear":
+        warnings.append("收缩期里，指数、店和身体可能在同一个月一起挨打。")
+    if state.career_fresh <= 0 and "learn_career" not in plan.slots:
+        warnings.append(f"职业技能已经过时，这个月不学还会再掉 {quoted['rust_step']} 点。")
+    if bound_rest := quoted.get("contract_rest"):
+        if commitment(state, plan)["contracted_pay"] and "rest" in plan.slots:
+            warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
     if plan.automate and state.business_book < 150_000:
         warnings.append("账面还不大，雇人的固定成本可能把副业做成亏损。")
     return {"ok": not errors, "errors": errors, "warnings": warnings, "quote": quoted}
@@ -381,7 +400,12 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         if slot.startswith("learn_"):
             attr = {"learn_career": "career", "learn_venture": "venture", "learn_invest": "invest"}[slot]
             current = getattr(s, attr)
-            gain = learn_gain(current)
+            fresh_now = getattr(s, {"learn_career": "career_fresh", "learn_venture": "venture_fresh", "learn_invest": "invest_fresh"}[slot])
+            # 快过时才来学，或技能已经够高，都只续新鲜。提前学才按递减公式涨。
+            if fresh_now <= 3 or current >= 56:
+                gain = 1
+            else:
+                gain = learn_gain(current)
             if start_autonomy < 28:
                 gain = max(1, gain - 2)
             setattr(s, attr, min(100, current + gain))
@@ -458,6 +482,10 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         _move(s, "cash", -interest, "interest", ledger)
 
     event = _apply_event(s, rng, quoted["employment"], quoted["salary"], gross, ledger, notes)
+    shock = "none"
+    if regime == "bear" and rng.random() < SHOCK_P:
+        apply_contraction_bundle(s, event, ledger, notes)
+        shock = "contraction"
     _settle_liquidity(s, ledger, notes)
 
     if not overdraft:
@@ -500,6 +528,8 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         s.locked = min(plan.lock_amount, s.portfolio)
         s.lock_left = LOCK_TERM
         notes.append(f"封闭 {s.locked} 元指数，{LOCK_TERM} 个月内不能卖")
+
+    _apply_rust(s, plan, resolved_month, start_autonomy, notes)
 
     worth = realizable_net(s)
     fail_reason = None
@@ -550,6 +580,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         "business_net": business_net,
         "invest_return": invest_return,
         "event": event,
+        "shock": shock,
         "realizable": realizable_net(s),
         "regime": regime,
         "employment": plan.employment,
@@ -560,6 +591,52 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
     }
     s.last_report = report
     return s, [], report
+
+
+def _apply_rust(state: GameState, plan: Plan, month: int, autonomy: int, notes: list[str]) -> None:
+    """上班不保养职业技能。新鲜耗尽之后才掉点，学习或对口行动才会续上。"""
+    specs = (
+        ("career", "career_fresh", "learn_career", None, "职业"),
+        ("venture", "venture_fresh", "learn_venture", "venture", "经营"),
+        ("invest", "invest_fresh", "learn_invest", "invest", "投资"),
+    )
+    for attr, fresh_attr, learn_slot, practice_slot, label in specs:
+        learned = learn_slot in plan.slots
+        practiced = learned or (practice_slot is not None and practice_slot in plan.slots)
+        fresh = getattr(state, fresh_attr)
+        if learned:
+            cap = FRESH_LEARN_LATE if month >= LATE_FRESH_MONTH else FRESH_LEARN_EARLY
+            setattr(state, fresh_attr, cap)
+            continue
+        if practiced:
+            setattr(state, fresh_attr, max(fresh, FRESH_PRACTICE))
+            continue
+        if fresh > 0:
+            setattr(state, fresh_attr, fresh - 1)
+            continue
+        drop = min(getattr(state, attr), rust_step(month, autonomy))
+        if drop:
+            setattr(state, attr, getattr(state, attr) - drop)
+            notes.append(f"{label}技能过时，掉了 {drop} 点")
+
+
+def apply_contraction_bundle(state: GameState, already: str, ledger: list[dict], notes: list[str]) -> None:
+    """收缩月把指数、店和身体打在一起。合同挡裁员，挡不住这里。"""
+    notes.append("收缩期的冲击叠在一起")
+    before = state.portfolio
+    loss = before * SHOCK_INDEX_PCT // 100
+    if loss:
+        _move(state, "portfolio", -loss, "contraction_index", ledger)
+        if state.locked > 0 and before > 0:
+            state.locked = min(state.portfolio, state.locked * state.portfolio // before)
+    if state.business_stage in ("trial", "running") and state.business_book > 0 and already != "setback":
+        kept = state.business_book * (100 - SHOCK_BOOK_PCT) // 100
+        haircut = state.business_book - kept
+        if haircut:
+            _move(state, "book", -haircut, "contraction_book", ledger)
+    if state.stress > SHOCK_MEDICAL_STRESS and already != "medical":
+        _move(state, "cash", -SHOCK_MEDICAL, "contraction_medical", ledger)
+        notes.append(f"收缩月看病又花了 {SHOCK_MEDICAL} 元")
 
 
 def _apply_event(state, rng, employment, salary_paid, gross, ledger, notes) -> str:

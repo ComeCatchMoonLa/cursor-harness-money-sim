@@ -5,11 +5,18 @@ from __future__ import annotations
 import math
 
 from money_sim.constants import (
+    AUTONOMY_REST_HIGH,
+    AUTONOMY_REST_LOW,
+    AUTONOMY_RUST_RELIEF,
     BASE_LIVING,
+    CONTRACT_REST_HIGH,
+    CONTRACT_REST_LOW,
+    CONTRACT_REST_MID,
     NETWORK_SALARY_DEN,
     PART_TIME_DEN,
     PART_TIME_NUM,
     PRICE_START,
+    RUST_LATE_MONTH,
     SALARY_BASE,
     SALARY_PER_SKILL,
     TRIAL_EXIT_PCT,
@@ -130,3 +137,19 @@ def consume_stress_relief(spend: int) -> int:
 
 def consume_network_gain(spend: int) -> int:
     return min(8, max(1, spend // 3_000))
+
+
+def contract_rest_gain(autonomy: int) -> int:
+    """合同月不能真正下班。时间自主越高，这点休息才越有用。"""
+    if autonomy >= AUTONOMY_REST_HIGH:
+        return CONTRACT_REST_HIGH
+    if autonomy <= AUTONOMY_REST_LOW:
+        return CONTRACT_REST_LOW
+    return CONTRACT_REST_MID
+
+
+def rust_step(month: int, autonomy: int) -> int:
+    """新鲜耗尽之后每月掉几点。后期更快，除非你还留着时间自主。"""
+    if month < RUST_LATE_MONTH or autonomy >= AUTONOMY_RUST_RELIEF:
+        return 1
+    return 2

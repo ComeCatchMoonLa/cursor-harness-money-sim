@@ -39,10 +39,21 @@ def play_once(policy, seed: int) -> dict:
     max_jump = 0.0
     max_worth = realizable_net(state)
     slot_counter: Counter[str] = Counter()
+    early_learn = 0
+    late_learn = 0
+    early_learn_steps = 0
+    late_learn_steps = 0
     while state.status == "playing":
         plan = ensure_plan(state, policy(state))
         signature = plan_signature(plan)
         month = state.month
+        learning = any(slot.startswith("learn_") for slot in plan.slots)
+        if month <= 36:
+            early_learn_steps += 1
+            early_learn += int(learning)
+        if month >= 60:
+            late_learn_steps += 1
+            late_learn += int(learning)
         if previous is not None:
             changed = signature != previous
             if month <= 24:
@@ -81,6 +92,8 @@ def play_once(policy, seed: int) -> dict:
         "early_change_rate": early_changes / early_steps if early_steps else 0.0,
         "late_change_rate": late_changes / late_steps if late_steps else 0.0,
         "reached_late": late_steps > 0,
+        "early_learn_rate": early_learn / early_learn_steps if early_learn_steps else 0.0,
+        "late_learn_rate": late_learn / late_learn_steps if late_learn_steps else 0.0,
         "end_month": state.month - 1,
         "slots": slot_counter,
     }
@@ -97,6 +110,8 @@ def summarize(name: str, rows: list[dict]) -> dict:
     late_rows = [row for row in rows if row["reached_late"]]
     late_rates = [row["late_change_rate"] for row in late_rows]
     end_months = [row["end_month"] for row in rows]
+    early_learn_rates = [row["early_learn_rate"] for row in rows]
+    late_learn_rows = [row["late_learn_rate"] for row in rows if row["end_month"] >= 60]
     return {
         "name": name,
         "games": len(rows),
@@ -112,6 +127,8 @@ def summarize(name: str, rows: list[dict]) -> dict:
         "max_net": max(worths),
         "max_jump": max(jumps),
         "mean_late_change": statistics.fmean(late_rates) if late_rates else 0.0,
+        "mean_early_learn": statistics.fmean(early_learn_rates) if early_learn_rates else 0.0,
+        "mean_late_learn": statistics.fmean(late_learn_rows) if late_learn_rows else 0.0,
         "late_games": len(late_rows),
         "median_end_month": statistics.median(end_months),
         "suspect_jump_games": sum(row["max_jump"] > 0.55 for row in rows),
@@ -145,7 +162,7 @@ def run_batch(games: int, seed: int, policies=POLICIES) -> dict:
 def format_report(report: dict) -> str:
     lines = [
         f"局数 {report['games']}  种子 {report['seed']}",
-        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  单月最大跳升  可疑暴富局",
+        "策略  达成率  硬失败率  破产率  过劳率  未达成  平均净资产  中位净资产  p10  p90  中位结束月  后半程样本  后半程改方案率  前期学习月占比  后期学习月占比  单月最大跳升  可疑暴富局",
     ]
     for row in report["strategies"]:
         lines.append(
@@ -164,6 +181,8 @@ def format_report(report: dict) -> str:
                     f"{row['median_end_month']:.0f}",
                     str(row["late_games"]),
                     f"{row['mean_late_change']:.2f}",
+                    f"{row['mean_early_learn']:.2f}",
+                    f"{row['mean_late_learn']:.2f}",
                     f"{row['max_jump']:.1%}",
                     str(row["suspect_wealth_games"]),
                 ]

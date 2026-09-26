@@ -10,14 +10,17 @@ from money_sim.constants import (
     PRICE_START,
     START_AUTONOMY,
     START_CAREER,
+    START_CAREER_FRESH,
     START_CASH,
     START_ENERGY,
     START_INVEST,
+    START_INVEST_FRESH,
     START_LIFESTYLE,
     START_NETWORK,
     START_PORTFOLIO,
     START_STRESS,
     START_VENTURE,
+    START_VENTURE_FRESH,
     WIN_NET,
 )
 
@@ -71,6 +74,9 @@ class GameState:
     locked: int = 0
     lock_left: int = 0
     trial_months: int = 0
+    career_fresh: int = START_CAREER_FRESH
+    venture_fresh: int = START_VENTURE_FRESH
+    invest_fresh: int = START_INVEST_FRESH
     history: list[int] = field(default_factory=list)
     last_report: dict | None = None
 
@@ -107,6 +113,9 @@ class GameState:
             locked=self.locked,
             lock_left=self.lock_left,
             trial_months=self.trial_months,
+            career_fresh=self.career_fresh,
+            venture_fresh=self.venture_fresh,
+            invest_fresh=self.invest_fresh,
             history=list(self.history),
             last_report=self.last_report,
         )
@@ -193,6 +202,9 @@ def to_save_dict(state: GameState) -> dict:
         "locked": state.locked,
         "lock_left": state.lock_left,
         "trial_months": state.trial_months,
+        "career_fresh": state.career_fresh,
+        "venture_fresh": state.venture_fresh,
+        "invest_fresh": state.invest_fresh,
         "history": list(state.history),
         "last_report": state.last_report,
     }
@@ -232,10 +244,25 @@ def from_save_dict(data: dict) -> GameState:
         locked=int(data.get("locked", 0)),
         lock_left=int(data.get("lock_left", 0)),
         trial_months=int(data.get("trial_months", 0)),
+        career_fresh=int(data.get("career_fresh", START_CAREER_FRESH)),
+        venture_fresh=int(data.get("venture_fresh", START_VENTURE_FRESH)),
+        invest_fresh=int(data.get("invest_fresh", START_INVEST_FRESH)),
         history=[int(x) for x in data["history"]],
         last_report=data.get("last_report"),
     )
     return state
+
+
+def _rust_step(state: GameState) -> int:
+    from money_sim.economy import rust_step
+
+    return rust_step(state.month, state.autonomy)
+
+
+def _contract_rest(state: GameState) -> int:
+    from money_sim.economy import contract_rest_gain
+
+    return contract_rest_gain(state.autonomy)
 
 
 def display_month(state: GameState) -> int:
@@ -280,6 +307,12 @@ def public_view(state: GameState) -> dict:
         "locked": state.locked,
         "lock_left": state.lock_left,
         "trial_months": state.trial_months,
+        "career_fresh": state.career_fresh,
+        "venture_fresh": state.venture_fresh,
+        "invest_fresh": state.invest_fresh,
+        "rust_step": _rust_step(state),
+        "contract_rest": _contract_rest(state),
+        "regime_risk": "指数、店和身体可能在同一个月一起挨打" if state.regime == "bear" else "",
         "goal": WIN_NET,
         "start_net": START_CASH + START_PORTFOLIO,
         "history": list(state.history),

@@ -20,6 +20,13 @@ const STATUS_TEXT = {
 let state = null;
 let previewTimer = 0;
 
+function skillText(value, fresh, rustStep) {
+  if (Number(fresh) > 0) {
+    return `${value} · 新鲜 ${fresh} 月`;
+  }
+  return `${value} · 过时，每月 -${rustStep}`;
+}
+
 function wan(value) {
   const number = Number(value) || 0;
   const sign = number < 0 ? "-" : "";
@@ -65,7 +72,7 @@ function renderStatus() {
   ensureSlots();
   const shownMonth = state.month;
   setText("#month-label", `第 ${state.year} 年 ${state.month_of_year} 月 · 第 ${shownMonth}/108 月`);
-  setText("#regime", `景气：${state.regime_label}`);
+  setText("#regime", state.regime_risk ? `景气：${state.regime_label} · ${state.regime_risk}` : `景气：${state.regime_label}`);
   setText("#net-worth", wan(state.realizable));
   setText("#book-worth", wan(state.net_worth));
   const history = state.history || [];
@@ -93,11 +100,12 @@ function renderStatus() {
   document.querySelector("#energy-bar").value = state.energy;
   document.querySelector("#stress-bar").value = state.stress;
   document.querySelector("#autonomy-bar").value = state.autonomy;
-  setText("#career", String(state.career));
-  setText("#venture", String(state.venture));
-  setText("#invest", String(state.invest));
+  setText("#career", skillText(state.career, state.career_fresh, state.rust_step));
+  setText("#venture", skillText(state.venture, state.venture_fresh, state.rust_step));
+  setText("#invest", skillText(state.invest, state.invest_fresh, state.rust_step));
   setText("#lifestyle", `${state.lifestyle}%`);
-  setText("#contract-label", state.contract_left ? `剩余 ${state.contract_left} 个月` : "没有合同");
+  const restNote = `合同月休息回 ${state.contract_rest}`;
+  setText("#contract-label", state.contract_left ? `剩余 ${state.contract_left} 个月 · ${restNote}` : `没有合同 · ${restNote}`);
   setText("#lock-label", state.lock_left ? `${wan(state.locked)} · 剩余 ${state.lock_left} 个月` : "没有封闭");
   setText("#stage", state.burnout_streak ? `连续透支 ${state.burnout_streak} 个月` : "透支记满 3 个月会过劳失败");
   const full = document.querySelector('#employment option[value="full"]');
@@ -160,7 +168,8 @@ function renderLog() {
     const item = document.createElement("li");
     const notes = (row.notes || []).join("；");
     const shown = row.realizable == null ? row.net_worth : row.realizable;
-    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 可兑现 ${wan(shown)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)} · ${row.event}${notes ? " · " + notes : ""}`;
+    const shock = row.shock && row.shock !== "none" ? ` · ${row.shock}` : "";
+    item.textContent = `第 ${row.month} 月 ${STATUS_TEXT[row.status] || row.status} · 可兑现 ${wan(shown)} · 工资 ${wan(row.salary)} · 生活费 ${wan(row.living)} · 副业 ${wan(row.business_net)} · 投资 ${wan(row.invest_return)} · ${row.event}${shock}${notes ? " · " + notes : ""}`;
     list.append(item);
   });
 }

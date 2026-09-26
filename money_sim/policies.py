@@ -84,10 +84,13 @@ def policy_steady(state: GameState) -> Plan:
         employment = "full"
     slots: list[str] = []
     free = TOTAL_SLOTS - WORK_SLOTS[employment]
+    # 前期学到够用就停。后期新鲜期更短，技能已经很高也得再学。
+    refresh_at = 3 if state.month >= 48 else 1
+    career_stale = state.career_fresh <= refresh_at
     for index in range(free):
         if state.energy < 42 or state.stress > 64:
             slots.append("rest")
-        elif state.career < 58 and index == 0 and employment != "free":
+        elif (state.career < 58 or career_stale) and index == 0 and employment != "free":
             slots.append("learn_career")
         elif state.regime == "bear":
             slots.append("rest")
@@ -101,7 +104,9 @@ def policy_steady(state: GameState) -> Plan:
     buffer = _buffer(state)
     debt_pay = _pay_debt(state, max(0, state.cash - buffer))
     to_index, from_index = _rebalance(state, buffer + debt_pay)
-    sign = 6 if state.contract_left == 0 and state.career >= 36 and state.energy >= 50 else 0
+    sign = 0
+    if state.contract_left == 0 and state.career >= 36 and state.energy >= 50 and state.autonomy >= 36:
+        sign = 6
     employment, slots, sign = _bind(state, employment, slots, sign)
     lock_amount = 0
     sellable = _sellable(state)
@@ -199,18 +204,33 @@ def policy_owner(state: GameState) -> Plan:
     elif state.business_stage == "trial":
         employment, slots = ("part", ["rest", "venture"]) if tired or state.energy < LOW_ENERGY_FULL else ("full", ["venture"])
     elif state.venture < 46:
-        employment, slots = ("part", ["rest", "rest"]) if tired or state.energy < LOW_ENERGY_FULL else ("full", ["learn_venture"])
+        if tired or state.energy < LOW_ENERGY_FULL:
+            employment, slots = "part", ["rest", "rest"]
+        elif state.career_fresh <= 2:
+            employment, slots = "full", ["learn_career"]
+        else:
+            employment, slots = "full", ["learn_venture"]
     elif can_automate:
-        employment, slots = ("part", ["rest", "rest"]) if tired or state.energy < LOW_ENERGY_FULL else (
-            "full",
-            ["rest" if state.regime == "bear" else "invest"],
-        )
+        if tired or state.energy < LOW_ENERGY_FULL:
+            employment, slots = "part", ["rest", "rest"]
+        elif state.career_fresh <= 2:
+            employment, slots = "full", ["learn_career"]
+        elif state.venture_fresh <= 2:
+            employment, slots = "full", ["learn_venture"]
+        else:
+            employment, slots = "full", ["rest" if state.regime == "bear" else "invest"]
     elif mature and not tired and state.energy >= 48:
-        employment, slots = "part", ["venture", "venture"]
+        if state.career_fresh <= 2:
+            employment, slots = "part", ["venture", "learn_career"]
+        else:
+            employment, slots = "part", ["venture", "venture"]
     elif tired or state.energy < LOW_ENERGY_FULL:
         employment, slots = "part", ["rest", "venture"] if state.business_stage == "running" else ["rest", "rest"]
     else:
-        employment, slots = "full", ["venture"]
+        if state.career_fresh <= 2 and state.venture_fresh > 2:
+            employment, slots = "full", ["learn_career"]
+        else:
+            employment, slots = "full", ["venture"]
 
     accept = False
     risk = 15 if "invest" in slots and state.regime == "bull" else 0
