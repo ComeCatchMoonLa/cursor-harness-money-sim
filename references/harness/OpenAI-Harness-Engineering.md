@@ -17,3 +17,5 @@
 2. 边界写死在 `HARNESS.md`（可向本仓 push 功能分支并开 PR；禁 force-push、禁其他仓、禁碰真金），让 Agent 自主但不失控。
 3. 目标与验收写死在 `ACCEPTANCE.md`，具体玩法/技术栈留给 Agent 决定——测的是「人定边界 + Agent 自主闭环」。
 4. 判断 harness 是否成功：Agent 是**真的在用反馈改经济**，还是只在堆功能 / 刷 KPI。
+5. 给地图，不给百科。`HARNESS.md` 指向 `ACCEPTANCE.md`、`docs/dev/FEATURES.json` 和 `docs/dev/`；长设计不要塞进 PROGRESS。对话里新加的约束要写回仓内文件，否则下一轮等于不存在。
+6. 能机器检查的约束就写成测试。本仓用 `tests/test_features_floor.py` 钉住功能清单底线。每个大版本收工前做一次短清理，避免重复代码、死代码和过时设计堆成 slop。
