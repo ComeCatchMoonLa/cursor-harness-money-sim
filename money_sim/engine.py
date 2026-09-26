@@ -197,7 +197,7 @@ def quote(state: GameState, plan: Plan) -> dict:
         "leave": bound["leave"],
         "employment": employment,
         "operating": operating,
-        "living": living_cost(state.lifestyle, state.price_index),
+        "living": _housing_living(state, will_own),
         "housing_living": _housing_living(state, will_own),
         "down_payment": down if buying else 0,
         "mortgage_payment": home_pay if will_own and not selling_home else 0,
@@ -339,8 +339,9 @@ def preview(state: GameState, plan: Plan) -> dict:
     warnings: list[str] = []
     if quoted["energy_after"] < 0:
         warnings.append("精力会透支。连续三个月透支会过劳，本局失败。")
-    if quoted["cash_after_choices"] - quoted["living"] < 0:
-        warnings.append("生活费可能让现金为负，并迫使你卖出资产或借债。")
+    due = quoted["living"] + quoted["mortgage_payment"] + quoted["home_maintenance"]
+    if quoted["cash_after_choices"] - due < 0:
+        warnings.append("生活费和月供可能让现金为负，并迫使你卖出资产或借债。")
     if state.regime == "bear":
         warnings.append("收缩期里，指数、店和身体可能在同一个月一起挨打。")
     if state.career_fresh <= 0 and "learn_career" not in plan.slots:

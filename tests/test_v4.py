@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from money_sim.engine import resolve, validate
+from money_sim.economy import living_cost
+from money_sim.engine import preview, quote, resolve, validate
 from money_sim.policies import policy_grind, policy_nest
 from money_sim.state import Plan, net_worth, new_game, realizable_net
 
@@ -70,6 +71,25 @@ class HousingTests(unittest.TestCase):
         self.assertEqual(out.home_value, 0)
         self.assertEqual(out.mortgage, 0)
         self.assertIn("distress_home", _reasons(report))
+
+    def test_preview_living_is_what_owning_actually_charges(self):
+        state = new_game(1)
+        plan = Plan("full", ["rest"], from_index=360_000, buy_home=True)
+        quoted = quote(state, plan)
+        _, errors, report = resolve(state.clone(), plan)
+        self.assertEqual(errors, [])
+        self.assertEqual(quoted["living"], quoted["housing_living"])
+        self.assertEqual(quoted["living"], report["living"])
+        self.assertLess(quoted["living"], living_cost(state.lifestyle, state.price_index))
+
+        owned = new_game(1)
+        owned.cash = 10_000
+        owned.home_value = 900_000
+        owned.mortgage = 500_000
+        owned.mortgage_payment = 20_000
+        shown = preview(owned, Plan("full", ["rest"]))
+        self.assertEqual(shown["quote"]["living"], shown["quote"]["housing_living"])
+        self.assertTrue(any("月供" in item for item in shown["warnings"]))
 
     def test_grind_keeps_renting_and_nest_can_buy(self):
         state = new_game(1)
