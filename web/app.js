@@ -121,7 +121,7 @@ function renderStatus() {
   const offer = document.querySelector("#offer");
   const lines = [];
   if (state.pending_offer) {
-    lines.push(`外部报价月薪 ${wan(state.pending_offer)}。接的话这个月没有工资，之后十二个月按这个数发，技能不加。`);
+    lines.push(`外部报价月薪 ${wan(state.pending_offer)}。接的话这个月没有工资，之后十二个月按这个数发。这份报价不加技能，学习仍然算。`);
   }
   if (state.offer_left) {
     lines.push(`外部工资月薪 ${wan(state.offer_pay)}，还剩 ${state.offer_left} 个月。`);

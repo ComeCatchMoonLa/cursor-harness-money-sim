@@ -370,7 +370,7 @@ def preview(state: GameState, plan: Plan) -> dict:
         if commitment(state, plan)["contracted_pay"] and "rest" in plan.slots:
             warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
     if quoted["job_gap"]:
-        warnings.append("接手外部报价的这个月没有工资，月供和生活费照付，技能不加。")
+        warnings.append("接手外部报价的这个月没有工资，月供和生活费照付。这份报价本身不加技能，学习仍然算。")
     if plan.buy_home and not errors:
         warnings.append("买下之后可兑现会先掉一截，月供停不下来，房子也不能当月按市价拿回来。")
     if state.regime == "bear" and (plan.buy_home or state.home_value > 0):
@@ -420,7 +420,7 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         s.offer_gap = True
         s.pending_offer = 0
         s.autonomy = max(8, s.autonomy - JOB_OFFER_AUTONOMY)
-        notes.append("接了外部报价，这个月交接，没有工资，技能不加")
+        notes.append("接了外部报价，这个月交接，没有工资。这份报价不加技能")
 
     if quoted["exiting"]:
         _move(s, "book", -quoted["exit_book"], "exit_book", ledger)

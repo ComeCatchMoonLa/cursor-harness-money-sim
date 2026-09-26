@@ -42,6 +42,15 @@ class OfferTests(unittest.TestCase):
         self.assertEqual(out.career, 30)
         self.assertEqual(out.career_fresh, 8)
 
+    def test_studying_in_the_gap_month_still_raises_career(self):
+        state = new_game(1)
+        state.pending_offer = 20_000
+        out, errors, report = resolve(state, Plan("full", ["learn_career"], accept_job=True))
+        self.assertEqual(errors, [])
+        self.assertEqual(report["salary"], 0)
+        self.assertGreater(out.career, 24)
+        self.assertTrue(any("这份报价不加技能" in note for note in report["notes"]))
+
     def test_cannot_take_an_offer_that_is_not_there_or_breaks_a_contract_quietly(self):
         state = new_game(1)
         self.assertTrue(validate(state, Plan("full", ["rest"], accept_job=True)))
