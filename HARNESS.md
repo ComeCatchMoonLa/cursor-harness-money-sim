@@ -48,8 +48,8 @@ review 不等于等人过门：是 Agent 自己的质量闸，不是停下来等
 每个小目标开始时先做开工仪式，再按下面 1→7 做，不可跳。
 开工仪式：
 - 读 `PROGRESS.md`、`git log`、`docs/dev/FEATURES.json` 里 `passes` 仍为 false 的条目。
-- 能启动时，用 README 的命令打开可玩路径，并冒烟：开局 → 至少一次行动 → 推进一期 → 资产变化可见。冒烟失败就先修，再做新功能。
-- 游戏还不能启动时，先把启动做出来，不要并行堆系统。
+- 能启动时，用 README 的命令打开可玩路径，并冒烟：开局 → 至少一次行动 → 推进一期 → 资产变化可见。冒烟失败，或某条已通过的 FEATURE 回归失败，先把该条 `passes` 改回 false，修完再做新功能。
+- 游戏还不能启动、测试跑不起来、或模拟入口不存在时，下一笔改动是补启动、依赖、日志或测试入口并写进仓库，不要并行堆系统。选栈时优先本环境能启动、能测、能打日志的技术。
 1. 分析/对齐需求。对照 ACCEPTANCE、本版版本命题、当前小目标：要交付什么、不交付什么、如何验收。
 2. 调研。有需要才加深；短笔记可写到 `docs/dev/调研/`。按需查阅 references/；借鉴 examples 只学结构并注明来源。输出结论与可选方案，几句话到一小节即可。
 3. 设计。先设计再编码；文档宜短，放 `docs/dev/设计/`。按需要留下决策痕迹，不必每次写成长文：系统/玩法（规则、资源、取舍、胜负失败）、架构（模块边界、数据流、目录）、接口（模块 API、存档或状态形状、CLI 与 UI 边界）。同时写 3～5 条可勾选验收用例（正常路径 + 至少 1 条异常/失败路径）。目标是可施工，不是论文。
@@ -64,8 +64,8 @@ README、PROGRESS、DESIGN_REVIEW 仍按 ACCEPTANCE 更新。PROGRESS 四行必�
 
 ## 质量保证
 与「工程步骤」配套，强制。缺少手段等于质量闸未过。手段服务于交付质量；文档和检查表不能替代可运行的游戏、测试与模拟数据。
-- 功能清单。维护 `docs/dev/FEATURES.json`：每条含 id、category、description、steps、passes。V1 开工前已写入覆盖完整可玩一版的条目，并可追加，但禁止删除既有 id，禁止改写或删掉既有 steps 来降低标准。只有按 steps 做完真人级验证后，才可以把 passes 改为 true。底线快照在 `docs/dev/FEATURES.floor.json`，禁止改它来放宽。`python3 -m unittest tests/test_features_floor.py` 必须保持绿色，定栈后把它接进测试命令，不得删除。分类门：`playable` 与 `observe` 全部为 true 才能结束 V1；`feedback` 全部为 true 才能开始加厚新系统；`v3` 与全部既有条目为 true 才能结束 V3。
-- 可观察。README 有一条稳定启动命令。月末结算、胜利、失败打结构化日志，便于自己查。UI 与引擎同一状态源；不一致按缺陷处理。
+- 功能清单。维护 `docs/dev/FEATURES.json`：每条含 id、category、description、steps、passes。V1 开工前已写入覆盖完整可玩一版的条目，并可追加，但禁止删除既有 id，禁止改写或删掉既有 steps 来降低标准。只有按 steps 做完真人级验证后，才可以把 passes 改为 true。后来发现回归，必须立刻改回 false，先修再做新功能。底线快照在 `docs/dev/FEATURES.floor.json`，禁止改它来放宽。`python3 -m unittest tests/test_features_floor.py` 必须保持绿色，定栈后把它接进测试命令，不得删除。分类门：`playable` 与 `observe` 全部为 true 才能结束 V1；`feedback` 全部为 true 才能开始加厚新系统；`v3` 与全部既有条目为 true 才能结束 V3。
+- 可观察。README 有一条稳定启动命令。定栈后若本环境缺依赖，把安装步骤写进 README；需要让后续 Cloud Agent 开箱能测时，再写入 `.cursor/environment.json` 的 install，不要提前做空配置。月末结算、胜利、失败打结构化日志，便于自己查。UI 与引擎同一状态源；不一致按缺陷处理。
 - 机械护栏。定栈后尽快加上格式或 lint（若该栈适用）和测试命令，并写进 README。能写成测试的结构约束就写成测试，例如无成本收益动作必须被测试钉死，不要只写在文档里。
 - 经济用数据。用批量或抽样模拟查支配策略、后半程无脑、印钞、通胀式失控。发现后改规则再跑数，闭环写入 PROGRESS。禁止只改常数、凭感觉宣布更平衡。
 - 收工前短清理。每个大版本收工前清理重复代码、死代码、过时设计、未关严重缺陷、FEATURES 与实现不一致。清理后测试通过再 commit。

@@ -3,7 +3,7 @@
 > 我自己的短笔记，供本仓 Agent 参考。
 > 相关背景：Cursor · What we've learned building cloud agents — https://cursor.com/blog/cloud-agent-lessons
 
-1. **Cloud Agent 的本质是「环境 + 闭环」**，不是把本地 Agent 搬到云上。环境能否让 Agent 跑、测、验、演示，才是关键。每个小目标开始先读 `PROGRESS.md`、git log 和 `docs/dev/FEATURES.json` 的未通过项；能启动就冒烟，失败先修。
+1. **Cloud Agent 的本质是「环境 + 闭环」**，不是把本地 Agent 搬到云上。写得出代码但跑不了测试，闭环就不存在。每个小目标开始先读 `PROGRESS.md`、git log 和 `docs/dev/FEATURES.json` 的未通过项；能启动就冒烟，失败先修。定栈后把安装写进 README；只有后续会话确实缺依赖时，再写 `.cursor/environment.json` 的 install。
 2. **只在本仓工作**。不碰其他仓（尤其不碰 CardRPG），不改仓库外文件。
 3. **允许向本仓 push 功能分支、开或更新 PR**。仍禁止 force-push、改其他仓（尤其不碰 CardRPG）、接真实券商/支付/账户。需要越权时先停，在 `PROGRESS.md` 写原因，等人类。
 4. **自主选栈**：技术栈、目录结构、数值公式全由 Agent 决定，不要反问人类用什么框架。
