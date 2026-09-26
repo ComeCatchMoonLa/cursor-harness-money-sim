@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from money_sim.constants import LOW_ENERGY_FULL, MIN_CONSUME, TOTAL_SLOTS, WORK_SLOTS
-from money_sim.economy import living_cost
+from money_sim.economy import down_and_loan, home_price, living_cost, mortgage_payment, salary
 from money_sim.engine import quote, validate
 from money_sim.state import GameState, Plan
 
@@ -270,9 +270,43 @@ def policy_owner(state: GameState) -> Plan:
     return ensure_plan(state, plan)
 
 
+def policy_nest(state: GameState) -> Plan:
+    """先租着。工资盖得住月供、又不是收缩期，就卖一点指数付首付。不碰副业。"""
+    base = policy_steady(state)
+    if state.home_value > 0 or state.regime == "bear" or state.energy < 40:
+        return base
+    price = home_price(state.price_index)
+    down, loan = down_and_loan(price)
+    payment = mortgage_payment(loan)
+    if salary(state.career, state.network, "full") < payment * 4:
+        return base
+    reserve = living_cost(state.lifestyle, state.price_index) * 2
+    sellable = _sellable(state)
+    gap = down + reserve - state.cash
+    sell = 0
+    if gap > 0:
+        sell = min(sellable, (gap * 1_000 + 996) // 997)
+    liquid = state.cash + sell * 997 // 1_000
+    if liquid < down + reserve:
+        return base
+    trial = Plan(
+        base.employment,
+        list(base.slots),
+        from_index=sell,
+        debt_pay=base.debt_pay,
+        risk_pct=base.risk_pct,
+        sign_months=base.sign_months,
+        buy_home=True,
+    )
+    if not validate(state, trial):
+        return trial
+    return base
+
+
 POLICIES = (
     ("steady", policy_steady),
     ("grind", policy_grind),
     ("yolo", policy_yolo),
     ("owner", policy_owner),
+    ("nest", policy_nest),
 )

@@ -26,6 +26,8 @@ def plan_signature(plan: Plan) -> tuple:
         plan.break_contract,
         plan.lock_amount > 0,
         plan.unlock,
+        plan.buy_home,
+        plan.sell_home,
     )
 
 

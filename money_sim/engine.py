@@ -38,6 +38,11 @@ from money_sim.constants import (
     LATE_FRESH_MONTH,
     SHOCK_BOOK_PCT,
     SHOCK_INDEX_PCT,
+    HOME_DISTRESS_KEEP,
+    HOME_DRIFT,
+    HOME_SELL_COST,
+    MORTGAGE_RATE_DEN,
+    MORTGAGE_RATE_NUM,
     SHOCK_MEDICAL,
     SHOCK_MEDICAL_STRESS,
     SHOCK_P,
@@ -64,10 +69,16 @@ from money_sim.economy import (
     consume_stress_relief,
     contract_rest_gain,
     demand_bp,
+    down_and_loan,
     exit_pct,
+    home_maintenance,
+    home_price,
+    home_proceeds,
     index_distribution,
     learn_gain,
     living_cost,
+    mortgage_payment,
+    rent_of,
     risk_distribution,
     rust_step,
     salary,
@@ -97,6 +108,13 @@ def commitment(state: GameState, plan: Plan) -> dict:
         "leave": leave,
         "contracted_pay": bound and not leave,
     }
+
+
+def _housing_living(state: GameState, will_own: bool) -> int:
+    full = living_cost(state.lifestyle, state.price_index)
+    if will_own:
+        return full - rent_of(full)
+    return full
 
 
 def quote(state: GameState, plan: Plan) -> dict:
@@ -149,9 +167,21 @@ def quote(state: GameState, plan: Plan) -> dict:
     build_cost = builds * BUILD_COST
     tuition = learn_slots * TUITION
     sell_proceeds = plan.from_index * (INDEX_SELL_FEE_DEN - INDEX_SELL_FEE_NUM) // INDEX_SELL_FEE_DEN
+    price = home_price(state.price_index)
+    down, loan = down_and_loan(price)
+    buying = bool(plan.buy_home)
+    selling_home = bool(plan.sell_home and state.home_value > 0 and not buying)
+    will_own = (state.home_value > 0 and not selling_home) or buying
+    home_pay = mortgage_payment(loan) if buying else (state.mortgage_payment if will_own else 0)
+    maint = home_maintenance(price if buying else state.home_value) if will_own else 0
+    sale_net = 0
+    if selling_home:
+        sale_net = home_proceeds(state.home_value, 100 - HOME_SELL_COST) - state.mortgage
     cash_after = state.cash + pay + bonus + proceeds - penalty - tuition - build_cost - plan.consume_cash
     cash_after -= plan.to_index + plan.to_business + plan.debt_pay
-    cash_after += sell_proceeds
+    cash_after += sell_proceeds + sale_net
+    if buying:
+        cash_after -= down
     rest_gain = contract_rest_gain(state.autonomy)
     energy_after = state.energy + WORK_ENERGY[employment]
     for slot in plan.slots:
@@ -168,6 +198,11 @@ def quote(state: GameState, plan: Plan) -> dict:
         "employment": employment,
         "operating": operating,
         "living": living_cost(state.lifestyle, state.price_index),
+        "housing_living": _housing_living(state, will_own),
+        "down_payment": down if buying else 0,
+        "mortgage_payment": home_pay if will_own and not selling_home else 0,
+        "home_maintenance": maint,
+        "home_sale_net": sale_net,
         "tuition": tuition,
         "build_cost": build_cost,
         "builds": builds,
@@ -242,7 +277,10 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         errors.append("同一个月不能又买又卖指数")
     liquid = state.portfolio - state.locked
     if plan.from_index > max(0, liquid):
-        errors.append("封闭的指数不能卖")
+        if state.locked > 0:
+            errors.append("封闭的指数不能卖")
+        else:
+            errors.append("可卖的指数不够")
     if plan.lock_amount and plan.unlock:
         errors.append("同一个月不能又封闭又解锁")
     if plan.unlock and state.locked <= 0:
@@ -251,6 +289,12 @@ def validate(state: GameState, plan: Plan) -> list[str]:
         errors.append("封闭还没到期")
     if plan.lock_amount > max(0, liquid):
         errors.append("可卖的指数不够封闭")
+    if plan.buy_home and plan.sell_home:
+        errors.append("同一个月不能又买又卖房子")
+    if plan.buy_home and state.home_value > 0:
+        errors.append("已经有一套自住房")
+    if plan.sell_home and state.home_value <= 0:
+        errors.append("没有房子可卖")
     if plan.debt_pay > state.debt:
         errors.append("还债不能超过负债")
     if plan.risk_pct > 0 and "invest" not in plan.slots:
@@ -280,6 +324,10 @@ def validate(state: GameState, plan: Plan) -> list[str]:
             errors.append("还没开业，不能雇人")
     if quoted["cash_after_choices"] < 0:
         errors.append("现金不够完成这些支出")
+    if plan.buy_home and not errors:
+        cushion = quoted["cash_after_choices"] - quoted["housing_living"] - quoted["mortgage_payment"] - quoted["home_maintenance"]
+        if cushion < 0:
+            errors.append("首付之后，这个月的月供和生活费不够")
     return errors
 
 
@@ -300,6 +348,10 @@ def preview(state: GameState, plan: Plan) -> dict:
     if bound_rest := quoted.get("contract_rest"):
         if commitment(state, plan)["contracted_pay"] and "rest" in plan.slots:
             warnings.append(f"合同月休息只回 {bound_rest} 点精力。")
+    if plan.buy_home and not errors:
+        warnings.append("买下之后可兑现会先掉一截，月供停不下来，房子也不能当月按市价拿回来。")
+    if state.regime == "bear" and (plan.buy_home or state.home_value > 0):
+        warnings.append("收缩期房价会往下走，月供却一分不少。")
     if plan.automate and state.business_book < 150_000:
         warnings.append("账面还不大，雇人的固定成本可能把副业做成亏损。")
     return {"ok": not errors, "errors": errors, "warnings": warnings, "quote": quoted}
@@ -316,6 +368,10 @@ def _move(state: GameState, account: str, amount: int, reason: str, ledger: list
         state.business_book += amount
     elif account == "debt":
         state.debt += amount
+    elif account == "home":
+        state.home_value += amount
+    elif account == "mortgage":
+        state.mortgage += amount
     else:
         raise ValueError(account)
     ledger.append({"account": account, "amount": amount, "reason": reason})
@@ -389,6 +445,11 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
     if plan.debt_pay:
         _move(s, "cash", -plan.debt_pay, "debt_pay", ledger)
         _move(s, "debt", -plan.debt_pay, "debt_pay", ledger)
+    if plan.buy_home:
+        _buy_home(s, ledger, notes)
+    elif plan.sell_home and s.home_value > 0:
+        _close_home(s, 100 - HOME_SELL_COST, "sell_home", ledger, notes)
+        notes.append("卖掉自住房，扣掉交易成本并还清房贷")
 
     s.energy = quoted["energy_after"]
     s.stress += WORK_STRESS[quoted["employment"]]
@@ -475,8 +536,11 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
     elif not quoted["exiting"]:
         s.last_business_net = 0
 
-    live = living_cost(s.lifestyle, s.price_index)
+    full_live = living_cost(s.lifestyle, s.price_index)
+    live = full_live - rent_of(full_live) if s.home_value > 0 else full_live
     _move(s, "cash", -live, "living", ledger)
+    if s.home_value > 0:
+        _service_home(s, ledger, notes)
     if s.debt > 0:
         interest = s.debt * DEBT_RATE_NUM // DEBT_RATE_DEN
         _move(s, "cash", -interest, "interest", ledger)
@@ -524,6 +588,10 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         if s.lock_left == 0:
             s.locked = 0
             notes.append("封闭到期，指数可以卖了")
+    if s.home_value > 0:
+        delta = s.home_value * HOME_DRIFT.get(regime, 0) // 1000
+        if delta:
+            _move(s, "home", delta, "home_drift", ledger)
     if plan.lock_amount and s.lock_left == 0 and s.locked == 0:
         s.locked = min(plan.lock_amount, s.portfolio)
         s.lock_left = LOCK_TERM
@@ -581,6 +649,8 @@ def resolve(state: GameState, plan: Plan) -> tuple[GameState, list[str], dict | 
         "invest_return": invest_return,
         "event": event,
         "shock": shock,
+        "home_value": s.home_value,
+        "mortgage": s.mortgage,
         "realizable": realizable_net(s),
         "regime": regime,
         "employment": plan.employment,
@@ -684,6 +754,46 @@ def _apply_event(state, rng, employment, salary_paid, gross, ledger, notes) -> s
     return picked
 
 
+def _buy_home(state: GameState, ledger: list[dict], notes: list[str]) -> None:
+    price = home_price(state.price_index)
+    down, loan = down_and_loan(price)
+    _move(state, "cash", -down, "home_down", ledger)
+    _move(state, "home", price, "home_buy", ledger)
+    _move(state, "mortgage", loan, "home_loan", ledger)
+    state.mortgage_payment = mortgage_payment(loan)
+    notes.append(f"买入自住房，首付 {down} 元，月供 {state.mortgage_payment} 元")
+
+
+def _close_home(state: GameState, keep_pct: int, reason: str, ledger: list[dict], notes: list[str]) -> None:
+    proceeds = home_proceeds(state.home_value, keep_pct)
+    owed = state.mortgage
+    value = state.home_value
+    if value:
+        _move(state, "home", -value, reason, ledger)
+    if proceeds:
+        _move(state, "cash", proceeds, reason, ledger)
+    if owed:
+        _move(state, "mortgage", -owed, reason, ledger)
+        _move(state, "cash", -owed, reason, ledger)
+    state.mortgage_payment = 0
+
+
+def _service_home(state: GameState, ledger: list[dict], notes: list[str]) -> None:
+    if state.mortgage > 0 and state.mortgage_payment > 0:
+        interest = state.mortgage * MORTGAGE_RATE_NUM // MORTGAGE_RATE_DEN
+        principal = min(state.mortgage, max(0, state.mortgage_payment - interest))
+        due = principal + interest
+        _move(state, "cash", -due, "mortgage", ledger)
+        if principal:
+            _move(state, "mortgage", -principal, "mortgage", ledger)
+        if state.mortgage <= 0:
+            state.mortgage_payment = 0
+            notes.append("房贷还清了")
+    maint = home_maintenance(state.home_value)
+    if maint:
+        _move(state, "cash", -maint, "home_maint", ledger)
+
+
 def _settle_liquidity(state: GameState, ledger: list[dict], notes: list[str]) -> None:
     sold_index = False
     while state.cash < 0 and state.portfolio - state.locked > 0:
@@ -701,6 +811,9 @@ def _settle_liquidity(state: GameState, ledger: list[dict], notes: list[str]) ->
         sold_index = True
     if sold_index:
         notes.append("现金不够，被迫卖出指数")
+    if state.cash < 0 and state.home_value > 0:
+        _close_home(state, HOME_DISTRESS_KEEP, "distress_home", ledger, notes)
+        notes.append("现金不够，房子被折价卖掉还贷")
     if state.cash < 0 and state.business_book > 0:
         proceeds = state.business_book * DISTRESS_EXIT_NUM // DISTRESS_EXIT_DEN
         _move(state, "book", -state.business_book, "distress_book", ledger)

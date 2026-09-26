@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from money_sim.constants import LOG_FIELDS, REGIME_LABEL
-from money_sim.economy import exit_pct, living_cost, salary
+from money_sim.economy import exit_pct, living_cost, rent_of, salary
 from money_sim.engine import preview, resolve
 from money_sim.state import Plan, from_save_dict, new_game, public_view, to_save_dict
 
@@ -31,7 +31,8 @@ class Session:
         view = public_view(state)
         view["salary_full"] = salary(state.career, state.network, "full")
         view["salary_part"] = salary(state.career, state.network, "part")
-        view["living"] = living_cost(state.lifestyle, state.price_index)
+        full_living = living_cost(state.lifestyle, state.price_index)
+        view["living"] = full_living - rent_of(full_living) if state.home_value else full_living
         view["regime_label"] = REGIME_LABEL.get(state.regime, state.regime)
         view["stage_label"] = STAGE_LABEL.get(state.business_stage, state.business_stage)
         pct = exit_pct(state.business_stage, state.last_business_net, 0, False)
@@ -83,6 +84,8 @@ def parse_plan(data: dict) -> Plan:
         break_contract=bool(data.get("break_contract", False)),
         lock_amount=num("lock_amount"),
         unlock=bool(data.get("unlock", False)),
+        buy_home=bool(data.get("buy_home", False)),
+        sell_home=bool(data.get("sell_home", False)),
     )
 
 

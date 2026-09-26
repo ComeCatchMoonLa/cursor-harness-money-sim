@@ -106,6 +106,19 @@ SHOCK_BOOK_PCT = 5
 SHOCK_MEDICAL = 8_000
 SHOCK_MEDICAL_STRESS = 50
 
+HOME_BASIS = 900_000
+HOME_DOWN_NUM = 35
+HOME_DOWN_DEN = 100
+MORTGAGE_MONTHS = 240
+MORTGAGE_RATE_NUM = 4
+MORTGAGE_RATE_DEN = 1_000
+RENT_SHARE = 32
+HOME_SELL_COST = 12
+HOME_DISTRESS_KEEP = 78
+HOME_MAINT_NUM = 10
+HOME_MAINT_DEN = 10_000
+HOME_DRIFT = {"bull": 3, "chop": 1, "bear": -4}
+
 REGIME_LABEL = {"bull": "景气", "chop": "平淡", "bear": "收缩"}
 
 LOG_FIELDS = (
@@ -126,4 +139,6 @@ LOG_FIELDS = (
     "fail_reason",
     "realizable",
     "shock",
+    "home_value",
+    "mortgage",
 )

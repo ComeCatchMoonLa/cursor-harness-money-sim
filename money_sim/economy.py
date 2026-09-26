@@ -12,10 +12,20 @@ from money_sim.constants import (
     CONTRACT_REST_HIGH,
     CONTRACT_REST_LOW,
     CONTRACT_REST_MID,
+    HOME_BASIS,
+    HOME_DOWN_DEN,
+    HOME_DOWN_NUM,
+    HOME_MAINT_DEN,
+    HOME_MAINT_NUM,
+    HOME_SELL_COST,
+    MORTGAGE_MONTHS,
+    MORTGAGE_RATE_DEN,
+    MORTGAGE_RATE_NUM,
     NETWORK_SALARY_DEN,
     PART_TIME_DEN,
     PART_TIME_NUM,
     PRICE_START,
+    RENT_SHARE,
     RUST_LATE_MONTH,
     SALARY_BASE,
     SALARY_PER_SKILL,
@@ -153,3 +163,43 @@ def rust_step(month: int, autonomy: int) -> int:
     if month < RUST_LATE_MONTH or autonomy >= AUTONOMY_RUST_RELIEF:
         return 1
     return 2
+
+
+def home_price(price_index: int) -> int:
+    return HOME_BASIS * price_index // PRICE_START
+
+
+def down_and_loan(price: int) -> tuple[int, int]:
+    down = price * HOME_DOWN_NUM // HOME_DOWN_DEN
+    return down, price - down
+
+
+def mortgage_payment(principal: int) -> int:
+    """等额本息。月供在买入时定死，不跟着后来的房价走。"""
+    if principal <= 0:
+        return 0
+    scale = 1_000_000
+    growth = scale
+    for _ in range(MORTGAGE_MONTHS):
+        growth = growth * (MORTGAGE_RATE_DEN + MORTGAGE_RATE_NUM) // MORTGAGE_RATE_DEN
+    denom = MORTGAGE_RATE_DEN * (growth - scale)
+    return (principal * MORTGAGE_RATE_NUM * growth + denom - 1) // denom
+
+
+def rent_of(living: int) -> int:
+    return living * RENT_SHARE // 100
+
+
+def home_maintenance(value: int) -> int:
+    return value * HOME_MAINT_NUM // HOME_MAINT_DEN if value > 0 else 0
+
+
+def home_proceeds(value: int, keep_pct: int) -> int:
+    return value * keep_pct // 100 if value > 0 else 0
+
+
+def home_equity(value: int, mortgage: int) -> int:
+    """主动卖掉、扣掉交易成本、还清贷款之后能拿走的数。可以是负的。"""
+    if value <= 0:
+        return -mortgage
+    return home_proceeds(value, 100 - HOME_SELL_COST) - mortgage
