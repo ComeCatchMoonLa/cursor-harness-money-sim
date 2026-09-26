@@ -14,7 +14,7 @@
 ## 对本实验的启发
 
 1. 反馈眼睛 = 单元测试 + 批量模拟 + 三指标（达成率 / 破产率 / 策略分化）。没有它，Agent 只能靠「看起来对」交差。
-2. 边界写死在 `HARNESS.md`（可向本仓 push 功能分支并开 PR；禁 force-push、禁其他仓、禁碰真金），让 Agent 自主但不失控。
+2. 边界写死在 `HARNESS.md`（可向本仓功能分支 push 并开/更新 PR；禁 force-push、禁 push `main`、禁自行合并、禁其他仓、禁碰真金）。未收工不是越权，不要因此停住不 push。
 3. 目标与验收写死在 `ACCEPTANCE.md`，具体玩法/技术栈留给 Agent 决定——测的是「人定边界 + Agent 自主闭环」。
 4. 判断 harness 是否成功：Agent 是**真的在用反馈改经济**，还是只在堆功能 / 刷 KPI。
 5. 给地图，不给百科。`HARNESS.md` 指向 `ACCEPTANCE.md`、`docs/dev/FEATURES.json` 和 `docs/dev/`；长设计不要塞进 PROGRESS。对话里新加的约束要写回仓内文件，否则下一轮等于不存在。
